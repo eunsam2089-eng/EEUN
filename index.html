@@ -92,9 +92,12 @@
     <h2><span class="n">0</span>접속</h2>
     <div id="serverBox" class="hidden"><label>서버 주소 (Apps Script 웹 앱 URL, …/exec)</label>
     <input type="text" id="server" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></div>
-    <label>앱 비밀번호</label>
+    <p class="muted hidden" id="firstNote">처음 한 번만: 앱 비밀번호를 정하고 GPT 키를 넣어주세요. 키는 네 구글 서버에만 저장돼요.</p>
+    <label id="passLabel">앱 비밀번호</label>
     <input type="password" id="pass" autocomplete="current-password">
-    <div class="btns"><button class="pri" id="btnLogin">연결</button></div>
+    <div id="keyBox" class="hidden"><label>GPT(OpenAI) API 키 (sk-로 시작)</label>
+    <input type="password" id="apikey" autocomplete="off" placeholder="sk-..."></div>
+    <div class="btns"><button class="pri" id="btnLogin">연결</button><button class="sm" id="btnKey" style="border:0;text-decoration:underline">GPT 키 바꾸기</button></div>
   </section>
 
   <section id="secInput" class="hidden">
@@ -221,11 +224,29 @@ function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 (()=>{ const q=new URLSearchParams(location.search).get('server'); if(q) lsSet('eeun_server', q); })();
 if(!IN_GAS && !window.EEUN_SERVER){ show('serverBox'); $('server').value=lsGet('eeun_server'); }
 $('pass').value = lsGet('eeun_pass');
+S.status = null;
+async function checkStatus(){
+  try{ S.status = await run('api_status'); }catch(e){ S.status=null; return; }
+  const first = !S.status.hasPass;
+  show('firstNote', first || !S.status.hasKey);
+  $('passLabel').textContent = first ? '앱 비밀번호 정하기 (4자 이상, 직원과 공유)' : '앱 비밀번호';
+  show('keyBox', first || !S.status.hasKey);
+}
+$('btnKey').onclick = ()=>show('keyBox', $('keyBox').classList.contains('hidden'));
 $('btnLogin').onclick = async ()=>{
   if(!IN_GAS && !window.EEUN_SERVER) lsSet('eeun_server', $('server').value.trim());
   S.code = $('pass').value.trim();
   $('btnLogin').disabled = true; log('연결 중…');
   try{
+    if(!S.status) await checkStatus();
+    const key=$('apikey').value.trim();
+    if((S.status && (!S.status.hasPass || !S.status.hasKey)) || key){
+      if(S.status && !S.status.hasKey && !key) throw new Error('GPT 키를 넣어주세요.');
+      log('설정 저장 중… (키 확인)');
+      S.status = await run('api_setup', S.code, key);
+      $('apikey').value=''; show('keyBox',false); show('firstNote',false); $('passLabel').textContent='앱 비밀번호';
+      log('설정 저장됨','ok');
+    }
     S.init = await run('api_init', S.code);
     lsSet('eeun_pass', S.code);
     $('status').innerHTML = `${S.init.week.name}<br>환율 ${S.init.fx.rate}원/위안 · ${S.init.models.text} · ${S.init.models.image}`;
@@ -234,7 +255,7 @@ $('btnLogin').onclick = async ()=>{
   }catch(e){ log('연결 실패: '+e.message,'err'); }
   $('btnLogin').disabled = false;
 };
-if ($('pass').value) setTimeout(()=>$('btnLogin').click(), 50);
+if (IN_GAS || serverUrl()) checkStatus().then(()=>{ if ($('pass').value && S.status && S.status.hasPass && S.status.hasKey) $('btnLogin').click(); });
 
 /* ───────────── 사진 입력 ───────────── */
 async function prepImage(file){
