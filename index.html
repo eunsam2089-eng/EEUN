@@ -19,10 +19,10 @@
   :root { --ink:#111; --sub:#6b6b6b; --line:#e3e3e3; --panel:#f4f4f4; --accent:#111; --ok:#2f7a45; --err:#b3261e; }
   * { box-sizing:border-box; }
   body { margin:0; background:#fff; color:var(--ink); font:15px/1.55 "Noto Sans KR", system-ui, sans-serif; }
-  .wrap { max-width:760px; margin:0 auto; padding:calc(20px + env(safe-area-inset-top)) 16px 120px; }
+  .wrap { max-width:760px; margin:0 auto; padding:calc(20px + env(safe-area-inset-top)) 16px calc(20vh + 40px); }
   header { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:6px 0 18px; border-bottom:1px solid var(--line); margin-bottom:18px; }
-  header h1 { font:800 20px/1 Inter, "Noto Sans KR", sans-serif; letter-spacing:.02em; margin:0; }
-  header .st { color:var(--sub); font-size:12px; text-align:right; }
+  header h1 { font:800 20px/1 Inter, "Noto Sans KR", sans-serif; letter-spacing:.02em; margin:0; white-space:nowrap; }
+  header .st { color:var(--sub); font-size:11px; text-align:right; line-height:1.4; }
   section { border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
   section h2 { font-size:15px; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
   section h2 .n { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--ink); color:#fff; font-size:12px; }
@@ -66,13 +66,21 @@
   .out { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .out .pv { background:var(--panel); border-radius:8px; max-height:520px; overflow:auto; }
   .out img { width:100%; display:block; }
-  #log { position:fixed; left:0; right:0; bottom:0; z-index:10; background:#111; color:#eee; font-size:12px; line-height:1.5; max-height:22vh; overflow:auto; padding:8px 14px calc(8px + env(safe-area-inset-bottom)); }
+  #log { position:fixed; left:0; right:0; bottom:0; z-index:10; background:#111; color:#eee; font-size:12px; line-height:1.5; max-height:18vh; overflow:auto; padding:8px 14px calc(8px + env(safe-area-inset-bottom)); }
   #log:empty { display:none; }
   #log div.err { color:#ff9b93; } #log div.ok { color:#9be3ad; }
   .links a { display:block; color:var(--ink); margin:6px 0; word-break:break-all; }
   .muted { color:var(--sub); font-size:12px; }
   .chk { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px; }
   .chk input { width:18px; height:18px; }
+  #works { background:var(--panel); border-radius:10px; padding:12px 14px; margin:0 0 14px; }
+  .work { display:grid; grid-template-columns:48px 1fr; gap:10px; padding:10px 0; border-top:1px solid #e2e2e2; }
+  .work:first-of-type { border-top:0; }
+  .work img, .work .ph { width:48px; height:64px; object-fit:cover; border-radius:6px; background:#ddd; }
+  .work .wn { font-weight:500; font-size:14px; }
+  .work .wb { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .work .lnk { border:1px solid #111; border-radius:8px; padding:5px 10px; font-size:13px; color:#111; text-decoration:none; background:#fff; }
+  .tag2 { font-size:11px; background:#111; color:#fff; border-radius:9px; padding:1px 7px; vertical-align:middle; }
   /* crop modal */
   #cropM { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:30; display:flex; flex-direction:column; padding:12px; gap:10px; }
   #cropM canvas { max-width:100%; touch-action:none; align-self:center; background:#222; border-radius:6px; }
@@ -101,7 +109,7 @@
   </section>
 
   <section id="secInput" class="hidden">
-    <div id="draftBar" class="price hidden" style="margin:0 0 14px"></div>
+    <div id="works" class="hidden"></div>
     <h2><span class="n">1</span>상품 입력</h2>
     <label>1688 링크·공유문구, 발주 사이즈, 판매 컬러/사이즈, 라벨 지시 등 평소처럼 적기</label>
     <textarea id="txt" placeholder="예) 【...스웨이드 숏 가죽 자켓...】 https://qr.1688.com/s/xxxx&#10;Medium 사이즈로 할 거고 컬러는 카키 원컬러, 공급처 사이즈 M인데 우리는 프리사이즈로 판매"></textarea>
@@ -111,6 +119,7 @@
     <div class="btns">
       <button class="pri" id="btnAuto">자동으로 끝까지</button>
       <button id="btnAnalyze">분석만 하기</button>
+      <button id="btnNew" class="sm" style="border:0;text-decoration:underline">새 상품으로 비우기</button>
     </div>
     <p class="muted">자동: 분석 → 제품컷 생성 → 상세페이지·사이즈표 → 드라이브·샘플시트 저장까지 한 번에. 중간에 검토하려면 "분석만 하기".</p>
   </section>
@@ -278,7 +287,8 @@ $('files').onchange = async e=>{
   for (const f of e.target.files){ try{ S.images.push(await prepImage(f)); }catch(err){ log(f.name+' 불러오기 실패','err'); } }
   e.target.value=''; drawThumbs();
 };
-function drawThumbs(){
+function drawThumbs(){ drawThumbsRaw(); saveDraft(); }
+function drawThumbsRaw(){
   const t=$('thumbs'); t.innerHTML='';
   S.images.forEach((im,i)=>{
     const d=document.createElement('div'); d.className='thumb';
@@ -286,9 +296,9 @@ function drawThumbs(){
     d.querySelector('.x').onclick=()=>{ S.images.splice(i,1); drawThumbs(); };
     t.appendChild(d);
   });
-  saveDraft();
 }
 $('txt').addEventListener('input',()=>saveDraft());
+$('btnNew').onclick=()=>guard(newProduct);
 
 /* ───────────── 임시저장 (앱을 나갔다 와도 이어서) ───────────── */
 const DB={ db:null,
@@ -298,58 +308,102 @@ const DB={ db:null,
   async del(k){ const db=await this.open(); return new Promise(res=>{ const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>res(); }); }
 };
 let draftTimer=null, restoring=false;
+const MAX_WORKS=5;
+S.workId=null; S.saved=null;
+const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function getIndex(){ try{ return (await DB.get('index'))||[]; }catch(e){ return []; } }
 function snapshot(){
   if(S.info) try{ readForm(); }catch(e){}
   const cuts={};
   Object.entries(S.cuts||{}).forEach(([ci,o])=>{ cuts[ci]={}; ['front','side'].forEach(v=>{ if(o&&o[v]&&o[v].b64) cuts[ci][v]={mime:o[v].mime,b64:o[v].b64}; }); });
   return { t:Date.now(), txt:$('txt').value,
-    images:S.images.map(im=>({name:im.name, full:im.full.dataUrl, w:im.full.w, h:im.full.h, api:im.api})),
+    images:S.images.map(im=>({name:im.name, full:im.full.dataUrl, w:im.full.w, h:im.full.h})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked} : null,
-    cuts, crops:S.crops, useCrops:$('useCrops').checked, out:S.out||{} };
+    cuts, crops:S.crops, useCrops:$('useCrops').checked, rendered:!!(S.out&&S.out.detail), saved:S.saved };
+}
+async function writeWork(s){
+  if(!S.workId) S.workId=Date.now().toString(36);
+  const id=S.workId;
+  const meta={ id, t:s.t, name:(s.info&&s.info.product_name) || (s.txt||'').split('\n')[0].slice(0,28) || '이름 없는 작업',
+    photos:s.images.length, thumb:'', status:s.saved?'저장 완료':(s.rendered?'결과물 만듦':(s.info?'분석됨':'입력 중')), saved:s.saved||null };
+  try{ const c=document.createElement('canvas'); const im=S.images[0]&&S.images[0].full.img; if(im){ const k=96/Math.max(im.naturalWidth,im.naturalHeight); c.width=Math.round(im.naturalWidth*k); c.height=Math.round(im.naturalHeight*k); c.getContext('2d').drawImage(im,0,0,c.width,c.height); meta.thumb=c.toDataURL('image/jpeg',.7); } }catch(e){}
+  let idx=(await getIndex()).filter(w=>w.id!==id);
+  idx.unshift(meta);
+  const drop=idx.slice(MAX_WORKS); idx=idx.slice(0,MAX_WORKS);
+  for(const w of drop) await DB.del('work:'+w.id);
+  try{ await DB.set('work:'+id, s); }
+  catch(e){ // 저장 공간 부족: 가장 오래된 것부터 정리 후 재시도
+    while(idx.length>1){ const old=idx.pop(); await DB.del('work:'+old.id); try{ await DB.set('work:'+id, s); break; }catch(e2){} }
+  }
+  await DB.set('index', idx);
 }
 function saveDraft(now){
   if(restoring || !S.init) return;
   clearTimeout(draftTimer);
-  const go=()=>{ const s=snapshot(); if(!s.txt && !s.images.length && !s.info) return; DB.set('draft', s).catch(()=>{}); };
+  const go=()=>{ const s=snapshot(); if(!s.txt && !s.images.length && !s.info) return; writeWork(s).then(()=>{ if(!$('works').classList.contains('hidden')) renderWorks(); }).catch(()=>{}); };
   if(now) go(); else draftTimer=setTimeout(go, 700);
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') saveDraft(true); });
 window.addEventListener('pagehide',()=>saveDraft(true));
-async function offerDraft(){
-  let d=null; try{ d=await DB.get('draft'); }catch(e){}
-  if(!d || (!d.txt && !(d.images||[]).length && !d.info)) return;
-  const when=new Date(d.t).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-  const name=d.info&&d.info.product_name ? ' · '+d.info.product_name : '';
-  $('draftBar').innerHTML=`<b>하던 작업이 있어요</b><br><span class="muted">${when}${name} · 사진 ${(d.images||[]).length}장</span><div class="btns"><button class="pri sm" id="btnResume">이어서 하기</button><button class="sm" id="btnDiscard">지우고 새로</button></div>`;
-  show('draftBar');
-  $('btnResume').onclick=()=>guard(()=>restoreDraft(d));
-  $('btnDiscard').onclick=async()=>{ await DB.del('draft'); show('draftBar',false); };
+async function migrateOldDraft(){
+  try{ const d=await DB.get('draft'); if(!d) return; const keep=S.workId; S.workId=d.t.toString(36);
+    const idx=await getIndex(); if(!idx.find(w=>w.id===S.workId)){ await DB.set('work:'+S.workId, d); idx.unshift({id:S.workId,t:d.t,name:(d.info&&d.info.product_name)||(d.txt||'').slice(0,28)||'이름 없는 작업',photos:(d.images||[]).length,thumb:'',status:d.info?'분석됨':'입력 중'}); await DB.set('index', idx.slice(0,MAX_WORKS)); }
+    await DB.del('draft'); S.workId=keep; }catch(e){}
 }
-async function restoreDraft(d){
+async function renderWorks(){
+  const idx=await getIndex(); const box=$('works');
+  if(!idx.length){ show('works',false); return; }
+  box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline"><b>최근 작업</b><span class="muted">최대 ${MAX_WORKS}개 · 이 폰에 보관</span></div>`+
+    idx.map(w=>{ const when=new Date(w.t).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      const cur=w.id===S.workId;
+      return `<div class="work" data-id="${w.id}">${w.thumb?`<img src="${w.thumb}">`:'<div class="ph"></div>'}<div class="wi"><div class="wn">${esc(w.name)}${cur?' <span class="tag2">지금</span>':''}</div><div class="muted">${when} · ${esc(w.status)} · 사진 ${w.photos}장${w.saved&&w.saved.price?` · ${won(w.saved.price)}원`:''}</div>
+      <div class="wb">${cur?'':`<button class="sm pri" data-a="open">열기</button>`}${w.saved&&w.saved.folderUrl?`<a class="sm lnk" href="${w.saved.folderUrl}" target="_blank">폴더</a><a class="sm lnk" href="${w.saved.sheetUrl}" target="_blank">시트 ${w.saved.row}행</a>`:''}<button class="sm" data-a="del">삭제</button></div></div></div>`; }).join('');
+  box.querySelectorAll('.work').forEach(el=>{
+    const id=el.dataset.id;
+    const o=el.querySelector('[data-a=open]'); if(o) o.onclick=()=>guard(async()=>{ saveDraft(true); const d=await DB.get('work:'+id); if(!d) throw new Error('작업을 찾을 수 없어요.'); await restoreDraft(d, id); });
+    el.querySelector('[data-a=del]').onclick=async()=>{ await DB.del('work:'+id); await DB.set('index',(await getIndex()).filter(w=>w.id!==id)); if(id===S.workId) S.workId=null; renderWorks(); };
+  });
+  show('works');
+}
+async function offerDraft(){ await migrateOldDraft(); await renderWorks(); }
+async function apiFromDataUrl(dataUrl){
+  const im=await loadImg(dataUrl); const s=Math.min(1,1280/Math.max(im.naturalWidth,im.naturalHeight));
+  const cv=document.createElement('canvas'); cv.width=Math.round(im.naturalWidth*s); cv.height=Math.round(im.naturalHeight*s);
+  cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return { mime:'image/jpeg', b64: cv.toDataURL('image/jpeg',.85).split(',')[1] };
+}
+function resetWork(){
+  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null;
+  $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
+  ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
+}
+async function restoreDraft(d, id){
   restoring=true;
   try{
+    resetWork(); S.workId=id||S.workId; S.saved=d.saved||null;
     $('txt').value=d.txt||'';
-    S.images=[];
-    for(const x of d.images||[]) S.images.push({name:x.name, full:{dataUrl:x.full, w:x.w, h:x.h, img:await loadImg(x.full)}, api:x.api});
-    S.crops=d.crops||[]; S.out=d.out||{}; S.cuts={};
+    for(const x of d.images||[]) S.images.push({name:x.name, full:{dataUrl:x.full, w:x.w, h:x.h, img:await loadImg(x.full)}, api: x.api || await apiFromDataUrl(x.full)});
+    S.crops=d.crops||[]; S.cuts={};
     for(const [ci,o] of Object.entries(d.cuts||{})){ S.cuts[ci]={}; for(const v of ['front','side']) if(o[v]) S.cuts[ci][v]={mime:o[v].mime, b64:o[v].b64, img:await loadImg('data:'+o[v].mime+';base64,'+o[v].b64)}; }
-    drawThumbs();
+    drawThumbsRaw();
     if(d.info){
       S.info=d.info; normalizeInfo(S.info); fillForm();
       if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; updatePrice(); }
       $('useCrops').checked=d.useCrops!==false;
       show('secReview'); show('secCuts'); drawCuts(); drawCrops();
-      if(S.out.detail) showOut();
+      if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); showOut(); }
+      if(S.saved) $('links').innerHTML=`<a href="${S.saved.folderUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${S.saved.sheetUrl}" target="_blank">📊 샘플시트 ${S.saved.row}행</a><div class="muted">이미 저장된 작업이에요. 고쳐서 다시 저장하면 같은 폴더·행이 갱신돼요.</div>`;
     }
-    show('draftBar',false); log('하던 작업을 불러왔어요','ok');
+    log('작업을 불러왔어요: '+((S.info&&S.info.product_name)||'입력 중'),'ok');
   } finally { restoring=false; }
+  renderWorks(); window.scrollTo(0,0);
 }
-async function newProduct(){ await DB.del('draft'); location.reload(); }
+async function newProduct(){ saveDraft(true); await new Promise(r=>setTimeout(r,300)); resetWork(); S.workId=null; log('새 상품 시작'); renderWorks(); window.scrollTo(0,0); }
 
 /* ───────────── 분석 ───────────── */
 async function analyze(){
   const text=$('txt').value.trim();
   if(!text && !S.images.length) throw new Error('텍스트나 사진을 넣어주세요.');
+  if(S.saved){ S.workId=null; S.saved=null; $('links').innerHTML=''; } // 저장된 작업은 그대로 두고 새 기록으로
   log(`GPT 분석 중… (사진 ${S.images.length}장)`);
   const info = await run('api_analyze', S.code, text, S.images.map(x=>x.api));
   normalizeInfo(info);
@@ -700,7 +754,8 @@ async function saveAll(){
   $('links').innerHTML=`<a href="${F.productUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${sheetUrl}" target="_blank">📊 샘플시트 ${R.row}행</a><a href="${R.txtUrl}" target="_blank">📝 상품정보.txt</a>`+(R.jakjiRow?`<div class="muted">작지 시트 ${R.jakjiRow}행 추가됨</div>`:'')+`<div class="muted">판매가 ${won(R.price.price)}원 · ${R.price.formula}</div>`
     +`<div class="btns"><button class="pri" onclick="newProduct()">새 상품 등록</button></div>`;
   log(`저장 완료 · 샘플시트 ${R.row}행 · 판매가 ${won(R.price.price)}원`,'ok');
-  DB.del('draft');
+  S.saved={ folderUrl:F.productUrl, sheetUrl, row:R.row, price:R.price.price, txtUrl:R.txtUrl };
+  saveDraft(true);
 }
 $('btnSave').onclick=()=>guard(saveAll);
 
