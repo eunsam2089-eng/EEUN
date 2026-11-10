@@ -81,6 +81,21 @@
   .work .wb { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
   .work .lnk { border:1px solid #111; border-radius:8px; padding:5px 10px; font-size:13px; color:#111; text-decoration:none; background:#fff; }
   .tag2 { font-size:11px; background:#111; color:#fff; border-radius:9px; padding:1px 7px; vertical-align:middle; }
+  .lablib { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px; }
+  .lab { border:1.5px solid #ddd; border-radius:8px; padding:6px; text-align:center; font-size:11px; line-height:1.3; cursor:pointer; background:#fff; word-break:keep-all; }
+  .lab img { width:100%; height:56px; object-fit:contain; display:block; margin-bottom:4px; background:repeating-conic-gradient(#ececec 0 25%, #fff 0 50%) 50%/12px 12px; border-radius:4px; }
+  .lab.on { border-color:#111; box-shadow:inset 0 0 0 2px #111; }
+  .lsel { display:grid; grid-template-columns:56px 1fr; gap:10px; padding:10px 0; border-top:1px solid #eee; }
+  .lsel > img { width:56px; height:56px; object-fit:contain; background:#f1f1f1; border-radius:6px; }
+  .lineslot { grid-column:span 2; aspect-ratio:auto; min-height:220px; background:#fff; border:1px solid #e5e5e5; }
+  .lineslot img { max-height:420px; }
+  #lineM { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:30; display:flex; flex-direction:column; padding:12px; gap:8px; color:#fff; }
+  #lineM canvas { max-width:100%; touch-action:none; align-self:center; background:#fff; border-radius:6px; }
+  #lineM .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  #labM { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:30; display:flex; flex-direction:column; padding:12px; gap:8px; color:#fff; }
+  #labM canvas { max-width:100%; touch-action:none; align-self:center; border-radius:6px; }
+  #labM .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  #labM input[type=range] { flex:1; }
   /* crop modal */
   #cropM { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:30; display:flex; flex-direction:column; padding:12px; gap:10px; }
   #cropM canvas { max-width:100%; touch-action:none; align-self:center; background:#222; border-radius:6px; }
@@ -132,8 +147,14 @@
       <div><label>판매 사이즈</label><input type="text" id="f_saleSize"></div>
     </div>
     <div class="chk"><input type="checkbox" id="f_made"><span>EEUN MADE (로고·라벨 부착 상품)</span></div>
-    <div class="chk"><input type="checkbox" id="f_jakji"><span>작지 시트(EEUN 상품목록)에 추가</span></div>
-    <div id="labelsBox" class="hidden"><label>라벨 지시 (한 줄에 하나: 라벨 | 위치 | 메모)</label><textarea id="f_labels"></textarea></div>
+    <div id="labelsBox" class="hidden">
+      <label>라벨 고르기 (탭해서 선택, 최대 3개)</label>
+      <div class="lablib" id="labelLib"><div class="muted">라벨 불러오는 중…</div></div>
+      <div id="labelSel"></div>
+      <p class="muted">라벨은 실물 가로 4cm 이하. "위치·크기 정하기"로 정면 제품컷 위에 놓으면 실측 비율대로 들어가요.</p>
+    </div>
+    <div class="chk"><input type="checkbox" id="f_jakji"><span>작지 뽑기 (작업지시서 이미지 + 작지 시트 행)</span></div>
+    <div id="jakjiBox" class="hidden"><label>작지 메모 (공장 전달 사항)</label><textarea id="f_jakjiMemo" placeholder="예) 기존 라벨 제거, 세탁라벨 교체, 종이 행택 부착 → 비닐 포장 후 출고"></textarea></div>
 
     <div class="row">
       <div><label>공급처</label><input type="text" id="f_sup"></div>
@@ -173,12 +194,13 @@
     <label>고객용 설명</label><textarea id="f_desc"></textarea>
     <label>제품컷 생성 설명 (영문, AI용)</label><textarea id="f_ghost"></textarea>
     <label>미확인 사항</label><input type="text" id="f_unk">
-    <div class="btns"><button class="pri" id="btnCuts">제품컷 생성</button><button id="btnRender">상세페이지·사이즈표 만들기</button></div>
+    <div class="btns"><button class="pri" id="btnCuts">제품컷·도식화 생성</button><button id="btnRender">상세페이지·사이즈표 만들기</button></div>
   </section>
 
   <section id="secCuts" class="hidden">
     <h2><span class="n">3</span>제품컷 · 디테일</h2>
     <div class="cuts" id="cuts"></div>
+    <div class="cutrow" style="margin-top:12px"><div class="cn">사이즈표<br>도식화</div><div class="slot lineslot" id="lineSlot"></div></div>
     <div class="chk"><input type="checkbox" id="useCrops" checked><span>디테일 클로즈업 3장 넣기 (탭해서 영역 조정)</span></div>
     <div class="crops" id="crops"></div>
   </section>
@@ -199,6 +221,19 @@
   <canvas id="cropC"></canvas>
   <div class="bar"><span>크기</span><input type="range" id="cropSize" min="10" max="100" value="50"></div>
   <div class="bar"><button id="cropOk" class="pri" style="background:#fff;color:#111">적용</button><button id="cropCancel">취소</button></div>
+</div>
+<div id="labM" class="hidden">
+  <div class="bar"><b id="labTitle"></b><span id="labInfo" style="color:#ccc;font-size:13px"></span></div>
+  <div style="color:#bbb;font-size:12px">사진을 누르거나 끌어서 라벨 위치를 정하세요 (빨간 점선이 지금 라벨)</div>
+  <canvas id="labC"></canvas>
+  <div class="bar"><span>크기</span><input type="range" id="labSize" min="0.5" max="4" step="0.1"></div>
+  <div class="bar"><span>회전</span><input type="range" id="labRot" min="-180" max="180" step="5"></div>
+  <div class="bar"><button id="labOk" style="background:#fff;color:#111">적용</button></div>
+</div>
+<div id="lineM" class="hidden">
+  <div class="bar"><b>치수선 조정</b><span style="color:#ccc;font-size:12px">끝점(동그라미)을 끌어서 옷 끝선에 맞추세요. 글자를 끌면 선 전체가 움직여요.</span></div>
+  <canvas id="lineC"></canvas>
+  <div class="bar"><button id="lineRe">GPT로 다시 잡기</button><button id="lineOk" style="background:#fff;color:#111">적용</button></div>
 </div>
 <div id="log"></div>
 
@@ -315,11 +350,13 @@ async function getIndex(){ try{ return (await DB.get('index'))||[]; }catch(e){ r
 function snapshot(){
   if(S.info) try{ readForm(); }catch(e){}
   const cuts={};
-  Object.entries(S.cuts||{}).forEach(([ci,o])=>{ cuts[ci]={}; ['front','side'].forEach(v=>{ if(o&&o[v]&&o[v].b64) cuts[ci][v]={mime:o[v].mime,b64:o[v].b64}; }); });
+  Object.entries(S.cuts||{}).forEach(([ci,o])=>{ cuts[ci]={}; ['front','side'].forEach(v=>{ if(o&&o[v]&&o[v].b64) cuts[ci][v]={mime:o[v].mime,b64:o[v].b64}; else if(o&&o[v]&&o[v].job) cuts[ci][v]={job:o[v].job}; }); });
+  const line = S.line&&S.line.b64 ? {mime:S.line.mime,b64:S.line.b64,lines:S.line.lines||[]} : (S.line&&S.line.job ? {job:S.line.job} : null);
   return { t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, full:im.full.dataUrl, w:im.full.w, h:im.full.h})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked} : null,
-    cuts, crops:S.crops, useCrops:$('useCrops').checked, rendered:!!(S.out&&S.out.detail), saved:S.saved };
+    cuts, line, crops:S.crops, useCrops:$('useCrops').checked, rendered:!!(S.out&&S.out.detail), saved:S.saved,
+    labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,dataUrl:L.dataUrl,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,pos:L.pos,method:L.method,placed:!!L.placed})) };
 }
 async function writeWork(s){
   if(!S.workId) S.workId=Date.now().toString(36);
@@ -372,30 +409,34 @@ async function apiFromDataUrl(dataUrl){
   cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return { mime:'image/jpeg', b64: cv.toDataURL('image/jpeg',.85).split(',')[1] };
 }
 function resetWork(){
-  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null;
+  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; S.labels=[]; S.line=null;
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
   ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
 }
 async function restoreDraft(d, id){
-  restoring=true;
+  restoring=true; const pending=[];
   try{
     resetWork(); S.workId=id||S.workId; S.saved=d.saved||null;
     $('txt').value=d.txt||'';
     for(const x of d.images||[]) S.images.push({name:x.name, full:{dataUrl:x.full, w:x.w, h:x.h, img:await loadImg(x.full)}, api: x.api || await apiFromDataUrl(x.full)});
     S.crops=d.crops||[]; S.cuts={};
-    for(const [ci,o] of Object.entries(d.cuts||{})){ S.cuts[ci]={}; for(const v of ['front','side']) if(o[v]) S.cuts[ci][v]={mime:o[v].mime, b64:o[v].b64, img:await loadImg('data:'+o[v].mime+';base64,'+o[v].b64)}; }
+    S.labels=[]; for(const L of d.labels||[]) S.labels.push({...L, img:await loadImg(L.dataUrl)});
+    for(const [ci,o] of Object.entries(d.cuts||{})){ S.cuts[ci]={}; for(const v of ['front','side']){ if(o[v]&&o[v].b64) S.cuts[ci][v]={mime:o[v].mime, b64:o[v].b64, img:await loadImg('data:'+o[v].mime+';base64,'+o[v].b64)}; else if(o[v]&&o[v].job){ S.cuts[ci][v]={loading:true, job:o[v].job}; pending.push(()=>genCut(Number(ci),v,o[v].job)); } } }
+    if(d.line&&d.line.b64) S.line={...d.line, img:await loadImg('data:'+d.line.mime+';base64,'+d.line.b64)};
+    else if(d.line&&d.line.job){ S.line={loading:true, job:d.line.job}; pending.push(()=>genLine(d.line.job)); }
     drawThumbsRaw();
     if(d.info){
       S.info=d.info; normalizeInfo(S.info); fillForm();
       if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; updatePrice(); }
       $('useCrops').checked=d.useCrops!==false;
-      show('secReview'); show('secCuts'); drawCuts(); drawCrops();
+      show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
       if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); showOut(); }
       if(S.saved) $('links').innerHTML=`<a href="${S.saved.folderUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${S.saved.sheetUrl}" target="_blank">📊 샘플시트 ${S.saved.row}행</a><div class="muted">이미 저장된 작업이에요. 고쳐서 다시 저장하면 같은 폴더·행이 갱신돼요.</div>`;
     }
     log('작업을 불러왔어요: '+((S.info&&S.info.product_name)||'입력 중'),'ok');
   } finally { restoring=false; }
   renderWorks(); window.scrollTo(0,0);
+  if(pending.length){ log(`만들던 이미지 ${pending.length}개 이어서 확인 중…`); pending.forEach(f=>f().catch(e=>log('오류: '+e.message,'err'))); }
 }
 async function newProduct(){ saveDraft(true); await new Promise(r=>setTimeout(r,300)); resetWork(); S.workId=null; log('새 상품 시작'); renderWorks(); window.scrollTo(0,0); }
 
@@ -407,9 +448,9 @@ async function analyze(){
   log(`GPT 분석 중… (사진 ${S.images.length}장)`);
   const info = await run('api_analyze', S.code, text, S.images.map(x=>x.api));
   normalizeInfo(info);
-  S.info = info; S.cuts = {}; S.out = {};
+  S.info = info; S.cuts = {}; S.out = {}; S.line = null;
   S.crops = defaultCrops(info);
-  fillForm(); show('secReview'); show('secCuts'); drawCuts(); drawCrops();
+  fillForm(); show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
   log('분석 완료: '+info.product_name, 'ok');
   saveDraft(true);
 }
@@ -427,9 +468,9 @@ $('btnAnalyze').onclick = ()=>guard(analyze);
 function fillForm(){
   const i=S.info, fx=S.init.fx.rate;
   $('f_name').value=i.product_name||''; $('f_type').value=i.type; $('f_saleSize').value=i.sale_size;
-  $('f_made').checked=!!i.made; $('f_jakji').checked=!!i.made;
-  $('f_labels').value=(i.labels||[]).map(l=>[l.label,l.position,l.memo].join(' | ')).join('\n');
-  show('labelsBox', !!i.made);
+  $('f_made').checked=!!i.made; $('f_jakji').checked=!!i.made; $('f_jakjiMemo').value=i.jakjiMemo||'';
+  show('labelsBox', !!i.made); show('jakjiBox', !!i.made);
+  if(i.made){ drawLabelLib(); drawLabelSel(); }
   $('f_sup').value=i.supplier.name||''; $('f_url').value=i.supplier.url||''; $('f_supTitle').value=i.supplier.product_title||'';
   $('f_soColor').value=i.supplier_option.color||''; $('f_soSize').value=i.supplier_option.size||'';
   $('f_cur').value=i.price.currency==='KRW'?'KRW':'CNY'; $('f_amt').value=i.price.amount??''; $('f_fx').value=fx;
@@ -445,7 +486,9 @@ function readForm(){
   i.product_name=$('f_name').value.trim(); i.type=$('f_type').value; i.sale_size=$('f_saleSize').value.trim()||'FREE';
   i.made=$('f_made').checked;
   if(i.made && !/^\[ EEUN MADE \]/.test(i.product_name)) { i.product_name='[ EEUN MADE ] '+i.product_name.replace(/^\[.*?\]\s*/,''); $('f_name').value=i.product_name; }
-  i.labels=$('f_labels').value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{ const p=s.split('|').map(x=>x.trim()); return {label:p[0]||'',position:p[1]||'',memo:p[2]||''}; });
+  if(S.labels.length) i.labels=S.labels.map(L=>({label:L.name, position:L.pos||'위치 확인 필요', method:L.method, wcm:Math.round(L.wcm*10)/10, memo:`${L.method} · 실물 가로 ${L.wcm.toFixed(1)}cm`}));
+  else if(!i.made) i.labels=[];
+  i.jakjiMemo=$('f_jakjiMemo').value.trim();
   i.supplier.name=$('f_sup').value.trim(); i.supplier.url=$('f_url').value.trim(); i.supplier.product_title=$('f_supTitle').value.trim();
   i.supplier_option.color=$('f_soColor').value.trim(); i.supplier_option.size=$('f_soSize').value.trim();
   i.measurement_note=$('f_measNote').value.trim();
@@ -476,7 +519,8 @@ function updatePrice(){
 ['f_cur','f_amt','f_fx','f_userPrice','f_type'].forEach(id=>$(id).addEventListener('input',updatePrice));
 ['input','change'].forEach(ev=>$('secReview').addEventListener(ev,()=>saveDraft()));
 $('useCrops').addEventListener('change',()=>saveDraft());
-$('f_made').onchange=()=>{ show('labelsBox',$('f_made').checked); if($('f_made').checked) $('f_jakji').checked=true; };
+$('f_made').onchange=()=>{ const on=$('f_made').checked; show('labelsBox',on); if(on){ $('f_jakji').checked=true; show('jakjiBox',true); drawLabelLib(); drawLabelSel(); } };
+$('f_jakji').onchange=()=>show('jakjiBox',$('f_jakji').checked);
 
 function drawColors(){
   const box=$('colors'); box.innerHTML='';
@@ -528,24 +572,211 @@ function drawCuts(){
     box.appendChild(r);
   });
 }
-async function genCut(ci, view){
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+/** 서버가 백그라운드 작업(job)을 주면 완료될 때까지 확인 */
+async function waitJob(r, what){
+  if(!r.job) return r;
+  const t0=Date.now(); let k=0;
+  for(;;){
+    await sleep(k++<2?8000:5000);
+    let st;
+    try{ st=await run('api_cutStatus', S.code, r.job); }
+    catch(e){ if(/네트워크|서버 응답/.test(e.message) && Date.now()-t0<12*60000) continue; throw e; }
+    if(st.done) return st;
+    if(Date.now()-t0>12*60000) throw new Error(what+' 생성이 너무 오래 걸려요. 다시 눌러주세요.');
+  }
+}
+async function genImage(fn, req, what, onJob, resumeJob){
+  let r=resumeJob?{job:resumeJob}:null;
+  if(!r){
+    try{ r=await run(fn, S.code, req); }
+    catch(e){ if(!/429|rate.?limit/i.test(e.message)) throw e; log(what+': 요청이 몰려서 30초 뒤 다시 시도'); await sleep(30000); r=await run(fn, S.code, req); }
+  }
+  if(!r.job) return r;
+  onJob&&onJob(r.job);
+  try{ return await waitJob(r, what); }
+  catch(e){
+    if(req.fast) throw e;
+    log(what+': 좋은 모델 실패 → 빠른 모델로 다시 ('+String(e.message).slice(0,90)+')','err');
+    return await waitJob(await run(fn, S.code, {...req, fast:true}), what);
+  }
+}
+/** 배경이 투명하지 않게 온 경우 흰/단색 배경을 지워서 투명 PNG로 */
+async function ensureAlpha(r){
+  const img=await loadImg('data:'+r.mime+';base64,'+r.b64);
+  const W=iw(img), H=ih(img); const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d',{willReadFrequently:true}); g.drawImage(img,0,0);
+  const d=g.getImageData(0,0,W,H), p=d.data;
+  const cs=[[3,3],[W-4,3],[3,H-4],[W-4,H-4],[W>>1,3],[3,H>>1],[W-4,H>>1]].map(([x,y])=>(y*W+x)*4);
+  if(cs.filter(o=>p[o+3]<200).length>=3) return {img, mime:r.mime, b64:r.b64};
+  let br=0,bgc=0,bb=0; cs.forEach(o=>{br+=p[o];bgc+=p[o+1];bb+=p[o+2];}); br/=cs.length; bgc/=cs.length; bb/=cs.length;
+  const T=48, dist=i=>{ const o=i*4; return Math.abs(p[o]-br)+Math.abs(p[o+1]-bgc)+Math.abs(p[o+2]-bb); };
+  const N=W*H, seen=new Uint8Array(N), st=new Int32Array(N); let sp=0;
+  const push=i=>{ if(!seen[i] && dist(i)<T){ seen[i]=1; st[sp++]=i; } };
+  for(let x=0;x<W;x++){ push(x); push((H-1)*W+x); } for(let y=0;y<H;y++){ push(y*W); push(y*W+W-1); }
+  while(sp){ const i=st[--sp]; p[i*4+3]=0; const x=i%W; if(x>0) push(i-1); if(x<W-1) push(i+1); if(i>=W) push(i-W); if(i<N-W) push(i+W); }
+  for(let i=0;i<N;i++){ if(seen[i]) continue; const x=i%W; if((x>0&&seen[i-1])||(x<W-1&&seen[i+1])||(i>=W&&seen[i-W])||(i<N-W&&seen[i+W])) p[i*4+3]=Math.min(255,Math.round(dist(i)/(T*2.2)*255)); }
+  g.putImageData(d,0,0);
+  const url=cv.toDataURL('image/png'); return {img:await loadImg(url), mime:'image/png', b64:url.split(',')[1]};
+}
+async function genCut(ci, view, resumeJob){
   readForm();
-  const c=S.info.sale_colors[ci];
-  S.cuts[ci]=S.cuts[ci]||{}; S.cuts[ci][view]={loading:true}; drawCuts();
-  log(`${c.name} ${view==='front'?'정면':'사선'} 제품컷 생성 중… (30초~1분)`);
+  const c=S.info.sale_colors[ci]; if(!c) return;
+  const nm=`${c.name} ${view==='front'?'정면':'사선'}`;
+  S.cuts[ci]=S.cuts[ci]||{}; S.cuts[ci][view]={loading:true, job:resumeJob}; drawCuts();
+  if(!resumeJob) log(`${nm} 제품컷 생성 중… (좋은 모델 1~3분)`);
   try{
-    const r=await run('api_generateCut', S.code, { view, colorEn:c.en||c.name, hex:c.hex, hint:S.info.ghost_prompt||S.info.product_name, refs: refIndices().map(i=>S.images[i].api) });
-    const img=await loadImg('data:'+r.mime+';base64,'+r.b64);
-    S.cuts[ci][view]={img, mime:r.mime, b64:r.b64};
-    log(`${c.name} ${view==='front'?'정면':'사선'} 완료`,'ok');
+    const req={ view, colorEn:c.en||c.name, hex:c.hex, hint:S.info.ghost_prompt||S.info.product_name, refs: refIndices().map(i=>S.images[i].api) };
+    const r=await genImage('api_generateCut', req, nm, job=>{ S.cuts[ci][view]={loading:true, job}; saveDraft(true); }, resumeJob);
+    S.cuts[ci][view]=await ensureAlpha(r);
+    log(`${nm} 완료${r.model?' · '+r.model:''}`,'ok');
     saveDraft(true);
   }catch(e){ S.cuts[ci][view]=null; drawCuts(); throw e; }
   drawCuts();
 }
-async function genAllCuts(){
-  const jobs=[]; S.info.sale_colors.forEach((c,ci)=>['front','side'].forEach(v=>{ if(!((S.cuts[ci]||{})[v]||{}).img) jobs.push([ci,v]); }));
-  for(let k=0;k<jobs.length;k+=2) await Promise.all(jobs.slice(k,k+2).map(([ci,v])=>genCut(ci,v)));
+async function pool(tasks, n){
+  let k=0; const errs=[];
+  await Promise.all(Array.from({length:Math.min(n,tasks.length)}, async()=>{ while(k<tasks.length){ const t=tasks[k++]; try{ await t(); }catch(e){ errs.push(e); log('오류: '+(e&&e.message||e),'err'); } } }));
+  if(errs.length) throw new Error(`이미지 ${errs.length}개 실패 — 해당 칸의 '다시'를 눌러주세요.`);
 }
+async function genAllCuts(){
+  const tasks=[]; let frontDone; const frontP=new Promise(r=>frontDone=r);
+  S.info.sale_colors.forEach((c,ci)=>['front','side'].forEach(v=>{
+    if(((S.cuts[ci]||{})[v]||{}).img) return;
+    if(ci===0&&v==='front') tasks.unshift(()=>genCut(0,'front').finally(frontDone)); else tasks.push(()=>genCut(ci,v));
+  }));
+  if(((S.cuts[0]||{}).front||{}).img || !S.info.sale_colors.length) frontDone();
+  if(!(S.line&&S.line.img)) tasks.push(async()=>{ await frontP; await genLine(); });
+  await pool(tasks, 3);
+}
+
+/* ───────────── 사이즈표 도식화 (라인) ───────────── */
+S.line=null;
+const isLen=l=>/총장|기장|총\s*길이|총\s*높이|전체\s*길이|총\s*기장/.test(l);
+const isTall=()=>/바지|팬츠|슬랙스|데님|청바지|스커트|치마|원피스|드레스|레깅스|부츠|점프수트|롱\s*코트/.test(((S.info||{}).category||'')+' '+((S.info||{}).product_name||''));
+const garmentKind=()=>{ const t=((S.info||{}).category||'')+' '+((S.info||{}).product_name||''); return /바지|팬츠|슬랙스|데님|청바지|스커트|치마|레깅스|쇼츠|반바지/.test(t)?'하의':/부츠|슈즈|신발|힐|로퍼|스니커즈|가방|백|모자|머플러/.test(t)?'기타':/원피스|드레스|점프수트/.test(t)?'원피스':'상의'; };
+function jpegOf(img, max, bg){
+  const s=Math.min(1,max/Math.max(iw(img),ih(img))); const cv=document.createElement('canvas'); cv.width=Math.round(iw(img)*s); cv.height=Math.round(ih(img)*s);
+  const g=cv.getContext('2d'); g.fillStyle=bg||'#fff'; g.fillRect(0,0,cv.width,cv.height); g.drawImage(img,0,0,cv.width,cv.height);
+  return { mime:'image/jpeg', b64:cv.toDataURL('image/jpeg',.9).split(',')[1] };
+}
+function drawLine(){
+  const box=$('lineSlot'); if(!box||!S.info) return; const st=S.line;
+  box.innerHTML=(st&&st.loading?'<div class="spin"></div>':st&&st.img?`<img src="${st.img.src}">`:'<span style="padding:0 12px;text-align:center">없음 · 정면 제품컷을 보고 라인 도식화를 그려요</span>')+
+    `<div class="acts"><button class="sm" data-a="gen">${st&&st.img?'다시':'생성'}</button>${st&&st.img?'<button class="sm" data-a="edit">치수선 조정</button>':''}<label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 8px;font-size:13px;background:#fff;cursor:pointer">내 그림<input type="file" accept="image/*" style="display:none"></label></div>`;
+  box.querySelector('[data-a=gen]').onclick=()=>guard(()=>genLine());
+  const ed=box.querySelector('[data-a=edit]'); if(ed) ed.onclick=()=>guard(openLineEditor);
+  box.querySelector('input[type=file]').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; await guard(async()=>{ const p=await prepImage(f); S.line={img:p.full.img, mime:'image/jpeg', b64:p.full.dataUrl.split(',')[1], lines:[]}; await measureLine(); drawLine(); saveDraft(true); }); };
+}
+async function genLine(resumeJob){
+  readForm();
+  S.line={loading:true, job:resumeJob}; drawLine();
+  if(!resumeJob) log('사이즈표 도식화(라인) 생성 중… (1~3분)');
+  try{
+    const front=(S.cuts[0]||{}).front;
+    const refs=front&&front.img ? [jpegOf(front.img,1024,'#fff')] : refIndices().slice(0,2).map(i=>S.images[i].api);
+    const r=await genImage('api_generateLine', { refs, hint:S.info.ghost_prompt||S.info.product_name, tall:isTall() }, '도식화', job=>{ S.line={loading:true, job}; saveDraft(true); }, resumeJob);
+    S.line={img:await loadImg('data:'+r.mime+';base64,'+r.b64), mime:r.mime, b64:r.b64, lines:[]};
+    await measureLine();
+    log('도식화 완료 · 치수선 '+S.line.lines.length+'개','ok'); saveDraft(true);
+  }catch(e){ S.line=null; drawLine(); throw e; }
+  drawLine();
+}
+function msLabels(){ return ((S.info&&S.info.measurements)||[]).filter(m=>m.label).map(m=>String(m.label).trim()); }
+async function measureLine(){
+  const labels=msLabels(); if(!S.line||!S.line.img) return;
+  if(!labels.length){ S.line.lines=[]; return; }
+  log('치수선 위치 잡는 중…');
+  let L=[]; try{ L=await run('api_measureLines', S.code, { image:jpegOf(S.line.img,1024,'#fff'), labels, kind:garmentKind()+' '+((S.info&&S.info.category)||'') }); }catch(e){ log('치수선 자동 위치 실패 — 직접 조정해 주세요: '+e.message,'err'); }
+  S.line.lines=snapLines(S.line.img, L, labels);
+}
+function darkMap(img){
+  const s=Math.min(1,600/Math.max(iw(img),ih(img))), W=Math.max(1,Math.round(iw(img)*s)), H=Math.max(1,Math.round(ih(img)*s));
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d',{willReadFrequently:true}); g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.drawImage(img,0,0,W,H);
+  const p=g.getImageData(0,0,W,H).data, m=new Uint8Array(W*H); let x0=W,y0=H,x1=-1,y1=-1;
+  for(let i=0;i<W*H;i++){ const o=i*4; if(p[o]*.3+p[o+1]*.59+p[o+2]*.11<175){ m[i]=1; const x=i%W, y=(i/W)|0; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
+  return {W,H,m,box: x1<0?{x0:.1,y0:.1,x1:.9,y1:.9}:{x0:x0/W,y0:y0/H,x1:(x1+1)/W,y1:(y1+1)/H}};
+}
+function snapLines(img, lines, labels){
+  const D=darkMap(img), b=D.box, cl=v=>Math.min(Math.max(v,0.01),0.99);
+  const near=(x,y,r)=>{ const cx=Math.round(x*D.W), cy=Math.round(y*D.H), R=Math.round(r*D.W); let best=null, bd=1e9;
+    for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){ const X=cx+dx, Y=cy+dy; if(X<0||Y<0||X>=D.W||Y>=D.H||!D.m[Y*D.W+X]) continue; const dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=[X/D.W,Y/D.H]; } }
+    return best; };
+  const rowNear=(x,y,r)=>{ const cy=Math.round(y*D.H), cx=Math.round(x*D.W), R=Math.round(r*D.W); if(cy<0||cy>=D.H) return x;
+    for(let d=0;d<=R;d++) for(const X of [cx-d,cx+d]) if(X>=0&&X<D.W&&D.m[cy*D.W+X]) return X/D.W; return x; };
+  const out=[];
+  (lines||[]).forEach(l=>{
+    if(!labels.includes(l.label) || out.find(o=>o.label===l.label)) return;
+    if(isLen(l.label)){ const x=cl(b.x1+0.07); out.push({label:l.label, x1:x, y1:b.y0, x2:x, y2:b.y1, len:true}); return; }
+    if(Math.abs(l.y2-l.y1)<0.04){
+      let y=(l.y1+l.y2)/2; const x1=rowNear(l.x1,y,0.05), x2=rowNear(l.x2,y,0.05);
+      if(y-b.y0<0.03) y=b.y0-0.035; else if(b.y1-y<0.03) y=b.y1+0.035;
+      out.push({label:l.label, x1:Math.min(x1,x2), y1:cl(y), x2:Math.max(x1,x2), y2:cl(y)}); return;
+    }
+    const a=near(l.x1,l.y1,0.03)||[l.x1,l.y1], c=near(l.x2,l.y2,0.03)||[l.x2,l.y2];
+    out.push({label:l.label, x1:a[0], y1:a[1], x2:c[0], y2:c[1]});
+  });
+  labels.forEach((lb,k)=>{ if(out.find(o=>o.label===lb)) return;
+    if(isLen(lb)){ const x=cl(b.x1+0.07); out.push({label:lb, x1:x, y1:b.y0, x2:x, y2:b.y1, len:true}); }
+    else { const y=b.y0+(b.y1-b.y0)*(0.25+0.15*(k%4)); out.push({label:lb, x1:b.x0+(b.x1-b.x0)*0.2, y1:y, x2:b.x0+(b.x1-b.x0)*0.8, y2:y}); } });
+  return out;
+}
+/** 치수선 하나 그리기 (화살표 + 가운데 글자) */
+function drawDim(g, l, map, k, ext){
+  const [x1,y1]=map(l.x1,l.y1), [x2,y2]=map(l.x2,l.y2), a=Math.atan2(y2-y1,x2-x1), ah=13*k;
+  g.save(); g.lineCap='round';
+  if(ext && l.len){ g.strokeStyle='#bdbdbd'; g.lineWidth=Math.max(1,1.4*k); g.beginPath();
+    g.moveTo(ext.x1,y1); g.lineTo(x1+10*k,y1); g.moveTo(ext.x1,y2); g.lineTo(x2+10*k,y2); g.stroke(); }
+  g.strokeStyle='#4a4a4a'; g.lineWidth=Math.max(1.2,2*k);
+  g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2);
+  [[x2,y2,a],[x1,y1,a+Math.PI]].forEach(([x,y,b])=>{ g.moveTo(x-ah*Math.cos(b-0.38),y-ah*Math.sin(b-0.38)); g.lineTo(x,y); g.lineTo(x-ah*Math.cos(b+0.38),y-ah*Math.sin(b+0.38)); });
+  g.stroke();
+  g.font=`400 ${Math.round(25*k)}px "Noto Sans KR", sans-serif`; g.textAlign='center'; g.textBaseline='middle';
+  const mx=(x1+x2)/2, my=(y1+y2)/2, tw=g.measureText(l.label).width;
+  g.fillStyle='#fff'; g.fillRect(mx-tw/2-9*k, my-17*k, tw+18*k, 34*k);
+  g.fillStyle='#333'; g.fillText(l.label, mx, my);
+  g.restore();
+}
+/** 도식화 + 치수선을 (ox,oy,maxW,maxH) 영역에 맞춰 그림 */
+function drawLineArt(g, ox, oy, maxW, maxH, k){
+  const img=S.line.img, D=darkMap(img), b=D.box, ls=S.line.lines||[];
+  let rx0=b.x0, ry0=b.y0, rx1=b.x1, ry1=b.y1;
+  ls.forEach(l=>{ rx0=Math.min(rx0,l.x1,l.x2); rx1=Math.max(rx1,l.x1,l.x2); ry0=Math.min(ry0,l.y1,l.y2); ry1=Math.max(ry1,l.y1,l.y2); });
+  rx0=Math.max(0,rx0-0.03); ry0=Math.max(0,ry0-0.03); rx1=Math.min(1,rx1+(ls.some(l=>l.len)?0.06:0.03)); ry1=Math.min(1,ry1+0.03);
+  const W=iw(img), H=ih(img), sw=(rx1-rx0)*W, sh=(ry1-ry0)*H, s=Math.min(maxW/sw, maxH/sh), dw=sw*s, dh=sh*s, dx=ox+(maxW-dw)/2, dy=oy+(maxH-dh)/2;
+  const map=(x,y)=>[dx+(x-rx0)*W*s, dy+(y-ry0)*H*s];
+  g.save(); g.imageSmoothingQuality='high'; g.drawImage(img, rx0*W, ry0*H, sw, sh, dx, dy, dw, dh); g.restore();
+  const right=map(b.x1,0)[0]-6*k;
+  ls.forEach(l=>drawDim(g, l, map, k, l.len?{x1:right}:null));
+}
+async function openLineEditor(){
+  if(!S.line||!S.line.img) return;
+  if(!(S.line.lines||[]).length) await measureLine();
+  show('lineM'); paintLineEd();
+}
+function paintLineEd(){
+  const cv=$('lineC'), img=S.line.img;
+  const scale=Math.min(Math.min(window.innerWidth-24,760)/iw(img), (window.innerHeight-170)/ih(img));
+  cv.width=Math.round(iw(img)*scale); cv.height=Math.round(ih(img)*scale);
+  const g=cv.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height); g.drawImage(img,0,0,cv.width,cv.height);
+  const map=(x,y)=>[x*cv.width, y*cv.height], k=Math.max(0.55, cv.width/1100);
+  (S.line.lines||[]).forEach(l=>{ drawDim(g,l,map,k,null);
+    [[l.x1,l.y1],[l.x2,l.y2]].forEach(([x,y])=>{ g.beginPath(); g.arc(x*cv.width,y*cv.height,9,0,Math.PI*2); g.fillStyle='rgba(229,72,77,.85)'; g.fill(); g.strokeStyle='#fff'; g.lineWidth=2; g.stroke(); }); });
+}
+(()=>{ const cv=$('lineC'); let drag=null;
+  const pt=e=>{ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height]; };
+  cv.addEventListener('pointerdown',e=>{ const [x,y]=pt(e), r=cv.getBoundingClientRect(), tol=26/r.width; let best=null, bd=1e9;
+    (S.line.lines||[]).forEach(l=>{ [['1',l.x1,l.y1],['2',l.x2,l.y2],['m',(l.x1+l.x2)/2,(l.y1+l.y2)/2]].forEach(([w,px,py])=>{ const d=Math.hypot(px-x,(py-y)*r.height/r.width); if(d<bd){ bd=d; best={l,w,x,y,o:{...l}}; } }); });
+    if(best&&bd<tol*1.6){ drag=best; cv.setPointerCapture(e.pointerId); } });
+  cv.addEventListener('pointermove',e=>{ if(!drag) return; const [x,y]=pt(e), l=drag.l, cl=v=>Math.min(Math.max(v,0),1);
+    if(drag.w==='1'){ l.x1=cl(x); l.y1=cl(y); } else if(drag.w==='2'){ l.x2=cl(x); l.y2=cl(y); }
+    else { const dx=x-drag.x, dy=y-drag.y; l.x1=cl(drag.o.x1+dx); l.x2=cl(drag.o.x2+dx); l.y1=cl(drag.o.y1+dy); l.y2=cl(drag.o.y2+dy); }
+    if(drag.w!=='m'){ if(l.len){ const m=(l.x1+l.x2)/2; l.x1=l.x2=m; } else if(Math.abs(l.y2-l.y1)<0.02){ const m=(l.y1+l.y2)/2; l.y1=l.y2=m; } }
+    paintLineEd(); });
+  ['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>drag=null));
+})();
+$('lineOk').onclick=()=>{ show('lineM',false); saveDraft(true); if(S.out&&S.out.size) guard(async()=>{ S.out.size=await renderSize(); showOut(); }); };
+$('lineRe').onclick=async()=>{ $('lineRe').disabled=true; try{ await measureLine(); paintLineEd(); }catch(e){ log('오류: '+e.message,'err'); } $('lineRe').disabled=false; };
 $('btnCuts').onclick=()=>guard(async()=>{ readForm(); show('secCuts'); await genAllCuts(); });
 
 /* ───────────── 디테일 크롭 ───────────── */
@@ -619,18 +850,172 @@ $('cropSrc').onchange=()=>{ CR.c.imageIndex=Number($('cropSrc').value); CR.c.rec
 $('cropOk').onclick=()=>{ CR.c.label=$('cropLabel').value.trim()||'디테일'; S.crops[CR.k]=CR.c; show('cropM',false); drawCrops(); saveDraft(); };
 $('cropCancel').onclick=()=>show('cropM',false);
 
+/* ───────────── 라벨 (EEUN MADE) ───────────── */
+S.labels=[]; S.labelLib=null;
+const LABEL_MAX_CM=4;
+const labelsOn=()=>$('f_made').checked && S.labels.length>0;
+async function loadLabelLib(){
+  if(S.labelLib) return S.labelLib;
+  const list=await run('api_labels', S.code);
+  const lib=[]; for(const l of list) lib.push({...l, img:await loadImg(l.dataUrl)});
+  S.labelLib=lib; return lib;
+}
+async function drawLabelLib(){
+  const box=$('labelLib');
+  try{ await loadLabelLib(); }catch(e){ box.innerHTML='<div class="muted">라벨을 못 불러왔어요: '+esc(e.message)+'</div>'; return; }
+  box.innerHTML='';
+  S.labelLib.forEach(l=>{
+    const on=S.labels.some(x=>x.id===l.id);
+    const d=document.createElement('div'); d.className='lab'+(on?' on':''); d.innerHTML=`<img src="${l.dataUrl}"><div>${esc(l.name)}</div>`;
+    d.onclick=()=>{ const k=S.labels.findIndex(x=>x.id===l.id);
+      if(k>=0) S.labels.splice(k,1);
+      else { if(S.labels.length>=3){ log('라벨은 최대 3개까지 고를 수 있어요','err'); return; }
+        S.labels.push({id:l.id,name:l.name,dataUrl:l.dataUrl,img:l.img,xr:.5,yr:Math.min(.12+S.labels.length*.12,.9),wcm:3,rot:0,pos:'',method:'봉제',placed:false}); }
+      drawLabelLib(); drawLabelSel(); saveDraft(); };
+    box.appendChild(d);
+  });
+}
+function drawLabelSel(){
+  const box=$('labelSel'); box.innerHTML='';
+  S.labels.forEach((L,k)=>{
+    const d=document.createElement('div'); d.className='lsel';
+    d.innerHTML=`<img src="${L.dataUrl}"><div><b style="font-size:14px">${k+1}. ${esc(L.name)}</b>
+      <div class="row" style="margin-top:6px"><input type="text" placeholder="위치 (예: 목 안쪽 중앙)" value="${esc(L.pos)}"><select>${['봉제','프레스','금형·리벳','부착(기타)'].map(m=>`<option${m===L.method?' selected':''}>${m}</option>`).join('')}</select></div>
+      <div class="muted" style="margin-top:4px">실물 가로 ${L.wcm.toFixed(1)}cm${L.placed?' · 위치 지정됨':' · 위치 미지정'}</div>
+      <div class="btns" style="margin-top:6px"><button class="sm pri">위치·크기 정하기</button><button class="sm">빼기</button></div></div>`;
+    const inp=d.querySelector('input'), sel=d.querySelector('select'); const [bPlace,bDel]=d.querySelectorAll('button');
+    inp.oninput=()=>{ L.pos=inp.value; saveDraft(); }; sel.onchange=()=>{ L.method=sel.value; saveDraft(); };
+    bPlace.onclick=()=>openLabelEditor(k);
+    bDel.onclick=()=>{ S.labels.splice(k,1); drawLabelLib(); drawLabelSel(); saveDraft(); };
+    box.appendChild(d);
+  });
+}
+/** 실측(총장 우선)으로 제품컷의 1cm 당 픽셀 추정 */
+function pxPerCm(img){
+  const b=alphaBBox(img);
+  const m=k=>{ const x=((S.info&&S.info.measurements)||[]).find(v=>String(v.label||'').includes(k)); return x?parseFloat(x.value)||0:0; };
+  const L=m('총장')||m('기장'), Sh=m('어깨'), Ch=m('가슴');
+  if(L) return b.h/(L*1.06);
+  if(Sh) return b.w/(Sh*1.9);
+  if(Ch) return b.w/(Ch*1.6);
+  return b.w/60;
+}
+function composeFront(img){
+  if(!img || !labelsOn()) return img;
+  const cv=document.createElement('canvas'); cv.width=iw(img); cv.height=ih(img);
+  const g=cv.getContext('2d'); g.drawImage(img,0,0);
+  const b=alphaBBox(img), ppc=pxPerCm(img);
+  S.labels.forEach(L=>{ if(!L.img) return;
+    const w=Math.min(L.wcm,LABEL_MAX_CM)*ppc, h=w*ih(L.img)/iw(L.img), cx=b.x+L.xr*b.w, cy=b.y+L.yr*b.h;
+    g.save(); g.translate(cx,cy); g.rotate(L.rot*Math.PI/180);
+    g.shadowColor='rgba(0,0,0,.28)'; g.shadowBlur=Math.max(2,w*.03); g.shadowOffsetY=Math.max(1,w*.012);
+    g.imageSmoothingQuality='high'; g.drawImage(L.img,-w/2,-h/2,w,h); g.restore(); });
+  BBOX.set(cv,b);
+  return cv;
+}
+let LE=null;
+function openLabelEditor(k){
+  const cut=(S.cuts[0]||{}).front;
+  if(!cut||!cut.img){ log('정면 제품컷을 먼저 만들어주세요 (제품컷 생성 또는 내 사진)','err'); return; }
+  LE={k, img:cut.img, b:alphaBBox(cut.img), ppc:pxPerCm(cut.img)};
+  const L=S.labels[k]; $('labSize').value=L.wcm; $('labRot').value=L.rot; $('labTitle').textContent=`${k+1}. ${L.name}`;
+  show('labM'); layoutLab();
+}
+function layoutLab(){
+  const cv=$('labC'), W=iw(LE.img), H=ih(LE.img);
+  LE.s=Math.min(Math.min(window.innerWidth-24,700)/W, (window.innerHeight-240)/H);
+  cv.width=Math.round(W*LE.s); cv.height=Math.round(H*LE.s); paintLab();
+}
+function paintLab(){
+  const cv=$('labC'), g=cv.getContext('2d'), L=S.labels[LE.k];
+  g.fillStyle=PAGE_BG; g.fillRect(0,0,cv.width,cv.height); g.drawImage(composeFront(LE.img),0,0,cv.width,cv.height);
+  const w=Math.min(L.wcm,LABEL_MAX_CM)*LE.ppc*LE.s, h=w*ih(L.img)/iw(L.img), cx=(LE.b.x+L.xr*LE.b.w)*LE.s, cy=(LE.b.y+L.yr*LE.b.h)*LE.s;
+  g.save(); g.translate(cx,cy); g.rotate(L.rot*Math.PI/180); g.strokeStyle='#ff4d4f'; g.setLineDash([5,4]); g.lineWidth=2; g.strokeRect(-w/2-5,-h/2-5,w+10,h+10); g.restore();
+  $('labInfo').textContent=`실물 가로 ${L.wcm.toFixed(1)}cm (최대 4cm)`;
+}
+(()=>{ const cv=$('labC'); let on=false;
+  const mv=e=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left)*(cv.width/r.width)/LE.s, y=(e.clientY-r.top)*(cv.height/r.height)/LE.s, L=S.labels[LE.k];
+    L.xr=Math.min(Math.max((x-LE.b.x)/LE.b.w,0),1); L.yr=Math.min(Math.max((y-LE.b.y)/LE.b.h,0),1); L.placed=true; paintLab(); };
+  cv.addEventListener('pointerdown',e=>{ on=true; cv.setPointerCapture(e.pointerId); mv(e); });
+  cv.addEventListener('pointermove',e=>{ if(on) mv(e); });
+  ['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>on=false));
+})();
+$('labSize').oninput=()=>{ S.labels[LE.k].wcm=Math.min(Number($('labSize').value),LABEL_MAX_CM); paintLab(); };
+$('labRot').oninput=()=>{ S.labels[LE.k].rot=Number($('labRot').value); paintLab(); };
+$('labOk').onclick=()=>{ S.labels[LE.k].placed=true; show('labM',false); drawLabelSel(); saveDraft(); };
+
+/* ───────────── 작업지시서 (작지) ───────────── */
+function wrapText(g,text,x,y,maxW,lh){
+  const out=[]; String(text||'').split('\n').forEach(par=>{ let line=''; for(const ch of par){ const t=line+ch; if(g.measureText(t).width>maxW && line){ out.push(line); line=ch; } else line=t; } out.push(line); });
+  out.forEach((l,k)=>g.fillText(l,x,y+k*lh)); return y+out.length*lh;
+}
+async function renderJakji(){
+  const i=readForm(); await fontsReady();
+  const W=1240,H=1754; const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.textBaseline='top'; g.fillStyle='#111';
+  const F=(w,s)=>`${w} ${s}px "Noto Sans KR", sans-serif`;
+  g.font=F(900,40); g.fillText('EEUN 작업지시서',60,50);
+  g.font=F(400,20); g.fillStyle='#666'; g.textAlign='right'; g.fillText((S.init.week.today||'')+(i.made?'  ·  EEUN MADE':''),W-60,62); g.textAlign='left';
+  g.fillStyle='#111'; g.fillRect(60,112,W-120,3);
+  const so=i.supplier_option||{}, sup=i.supplier||{};
+  const rows=[['상품명',i.product_name],['컬러',i.sale_colors.map(c=>c.name).join(' / ')],['판매 사이즈',i.sale_size],['공급처 발주',[so.color,so.size].filter(Boolean).join(' / ')||'-'],['공급처',sup.name||'-'],['공급처 링크',sup.url||'-'],['실측 (단면 cm)',(i.measurements||[]).filter(m=>m.label&&m.value).map(m=>m.label+' '+m.value).join(' / ')||'확인 필요']];
+  let y=135;
+  rows.forEach(([k,v])=>{ g.font=F(500,20); g.fillStyle='#555'; g.fillText(k,60,y); g.font=F(400,20); g.fillStyle='#111'; const ny=wrapText(g,v,260,y,W-320,28); y=Math.max(y+34,ny+6); g.fillStyle='#e5e5e5'; g.fillRect(60,y-4,W-120,1); });
+  const top=y+20, imgW=620, imgH=Math.min(860, H-top-480);
+  g.fillStyle=PAGE_BG; g.fillRect(60,top,imgW,imgH);
+  const cut=(S.cuts[0]||{}).front;
+  if(cut&&cut.img){
+    const img=composeFront(cut.img), b=alphaBBox(cut.img), sc=Math.min((imgW-60)/b.w,(imgH-60)/b.h), ox=60+(imgW-b.w*sc)/2, oy=top+(imgH-b.h*sc)/2;
+    g.drawImage(img,b.x,b.y,b.w,b.h,ox,oy,b.w*sc,b.h*sc);
+    const ppc=pxPerCm(cut.img);
+    S.labels.forEach((L,k)=>{ const cx=ox+L.xr*b.w*sc, cy=oy+L.yr*b.h*sc, r=Math.max(18,Math.min(L.wcm,4)*ppc*sc*0.7);
+      g.strokeStyle='#e5484d'; g.lineWidth=3; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.stroke();
+      const bx=Math.min(cx+r+26, 60+imgW-22), by=Math.max(cy-r-26, top+22);
+      g.beginPath(); g.moveTo(cx+r*.7,cy-r*.7); g.lineTo(bx,by); g.stroke();
+      g.fillStyle='#e5484d'; g.beginPath(); g.arc(bx,by,18,0,Math.PI*2); g.fill();
+      g.fillStyle='#fff'; g.font=F(700,20); g.textAlign='center'; g.fillText(String(k+1),bx,by-12); g.textAlign='left'; });
+  } else { g.fillStyle='#999'; g.font=F(400,22); g.fillText('제품컷 없음',80,top+20); }
+  // 라벨 목록
+  let ry=top; const rx=60+imgW+30, rw=W-60-rx;
+  g.fillStyle='#111'; g.font=F(700,24); g.fillText('라벨 · 부자재',rx,ry); ry+=44;
+  if(!S.labels.length){ g.font=F(400,20); g.fillStyle='#666'; g.fillText('지정된 라벨 없음',rx,ry); ry+=40; }
+  S.labels.forEach((L,k)=>{
+    g.fillStyle='#e5484d'; g.beginPath(); g.arc(rx+16,ry+16,16,0,Math.PI*2); g.fill(); g.fillStyle='#fff'; g.font=F(700,18); g.textAlign='center'; g.fillText(String(k+1),rx+16,ry+5); g.textAlign='left';
+    const bw=150,bh=90; g.fillStyle='#f3f3f3'; g.fillRect(rx+44,ry,bw,bh);
+    if(L.img){ const s2=Math.min((bw-12)/iw(L.img),(bh-12)/ih(L.img)); g.drawImage(L.img,rx+44+(bw-iw(L.img)*s2)/2,ry+(bh-ih(L.img)*s2)/2,iw(L.img)*s2,ih(L.img)*s2); }
+    g.fillStyle='#111'; g.font=F(700,19); let ty=wrapText(g,L.name,rx+44,ry+bh+8,rw-44,26);
+    g.font=F(400,18); g.fillStyle='#333';
+    ty=wrapText(g,'위치: '+(L.pos||'확인 필요'),rx+44,ty+2,rw-44,25);
+    ty=wrapText(g,'방식: '+L.method+'  ·  실물 가로 '+L.wcm.toFixed(1)+'cm',rx+44,ty+2,rw-44,25);
+    ry=ty+24;
+  });
+  // 메모
+  const my=Math.max(top+imgH+30, ry+10);
+  g.fillStyle='#111'; g.font=F(700,24); g.fillText('작업 메모',60,my);
+  g.strokeStyle='#ddd'; g.lineWidth=2; g.strokeRect(60,my+40,W-120,H-my-120);
+  g.font=F(400,20); g.fillStyle='#222'; wrapText(g,i.jakjiMemo||'(메모 없음) 부착 치수·봉제 방식 미확정 항목은 확인 후 진행',80,my+58,W-160,32);
+  g.font=F(400,16); g.fillStyle='#999'; g.fillText('EEUN 상품등록 앱 자동 생성 · 라벨 크기는 제품 실측 비율로 표시한 참고값',60,H-50);
+  return cv.toDataURL('image/png');
+}
+
 /* ───────────── 렌더링 (EEUN 고정 양식) ───────────── */
 async function fontsReady(){
   const specs=['800 28px Inter','700 22px "Noto Sans KR"','400 17px "Noto Sans KR"','500 17px "Noto Sans KR"','900 40px "Noto Sans KR"'];
   try{ await Promise.race([Promise.all(specs.map(s=>document.fonts.load(s,'가A'))), new Promise(r=>setTimeout(r,4000))]); }catch(e){}
 }
+const BBOX=new WeakMap();
+const iw=im=>im.naturalWidth||im.width, ih=im=>im.naturalHeight||im.height;
 function alphaBBox(img){
-  const cv=document.createElement('canvas'); const s=Math.min(1,400/Math.max(img.naturalWidth,img.naturalHeight));
-  cv.width=Math.max(1,Math.round(img.naturalWidth*s)); cv.height=Math.max(1,Math.round(img.naturalHeight*s));
+  if(BBOX.has(img)) return BBOX.get(img);
+  const r=alphaBBox0(img); BBOX.set(img,r); return r;
+}
+function alphaBBox0(img){
+  const cv=document.createElement('canvas'); const s=Math.min(1,400/Math.max(iw(img),ih(img)));
+  cv.width=Math.max(1,Math.round(iw(img)*s)); cv.height=Math.max(1,Math.round(ih(img)*s));
   const g=cv.getContext('2d'); g.drawImage(img,0,0,cv.width,cv.height);
   const d=g.getImageData(0,0,cv.width,cv.height).data; let x0=cv.width,y0=cv.height,x1=-1,y1=-1;
   for(let y=0;y<cv.height;y++) for(let x=0;x<cv.width;x++){ if(d[(y*cv.width+x)*4+3]>12){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
-  if(x1<0) return {x:0,y:0,w:img.naturalWidth,h:img.naturalHeight};
+  if(x1<0) return {x:0,y:0,w:iw(img),h:ih(img)};
   return {x:x0/s, y:y0/s, w:(x1-x0+1)/s, h:(y1-y0+1)/s};
 }
 function productBox(img, maxW, maxH){
@@ -648,7 +1033,7 @@ async function renderDetail(){
   const boxes=[];
   i.sale_colors.forEach((c,ci)=>{
     const cut=S.cuts[ci]||{};
-    boxes.push({cv:productBox(cut.front&&cut.front.img, 640, 770), dot:c.hex});
+    boxes.push({cv:productBox(cut.front&&composeFront(cut.front.img), 640, 770), dot:c.hex});
     if(cut.side&&cut.side.img) boxes.push({cv:productBox(cut.side.img, 560, 790)});
   });
   if($('useCrops').checked) S.crops.forEach(c=>boxes.push({cv:cropCanvas(c)}));
@@ -691,15 +1076,20 @@ async function renderSize(){
   const hl=(yy,c)=>{ g.fillStyle=c; g.fillRect(110,yy,1380,2); };
   hl(300,LN);
   const first=(S.cuts[0]||{}).front;
-  if(first&&first.img){
-    const img=first.img, b=alphaBBox(img), s=Math.min(760/b.w,880/b.h), w=b.w*s, h=b.h*s, x=(W-w)/2, y=350+(900-h)/2;
+  if(S.line&&S.line.img){
+    drawLineArt(g, 160, 340, 1280, 900, 1.25);
+    const gk=garmentKind();
+    g.font='400 24px "Noto Sans KR", sans-serif'; g.fillStyle='#8a8a8a'; g.textAlign='center'; g.fillText((gk&&gk!=='기타'?'앞면 · ':'')+'단면 측정 기준',W/2,1262); g.textAlign='left';
+  } else if(first&&first.img){
+    const img=composeFront(first.img), b=alphaBBox(img), s=Math.min(760/b.w,880/b.h), w=b.w*s, h=b.h*s, x=(W-w)/2, y=350+(900-h)/2;
     g.save(); g.shadowColor='rgba(0,0,0,0.18)'; g.shadowBlur=26; g.shadowOffsetY=3000; g.fillStyle='#000'; g.beginPath(); g.ellipse(W/2,y+h-2-3000,w*0.3,13,0,0,Math.PI*2); g.fill(); g.restore();
     g.drawImage(img,b.x,b.y,b.w,b.h,x,y,w,h);
   }
   const ct=(t,yy,f,c)=>{ g.font=f; g.fillStyle=c; g.textAlign='center'; g.fillText(t,W/2,yy); g.textAlign='left'; };
   const ms=(i.measurements||[]).filter(m=>m.label);
-  ct('사이즈 안내',1320,'500 36px "Noto Sans KR", sans-serif',DK);
-  ct(ms.length?'공급처 제공 치수 · 단면 기준 / 단위 cm':'상세 실측은 확인 후 안내 예정입니다.',1382,'400 26px "Noto Sans KR", sans-serif',GR);
+  const gk2=garmentKind();
+  ct((gk2&&gk2!=='기타'?gk2+' ':'')+'사이즈 안내',1320,'500 36px "Noto Sans KR", sans-serif',DK);
+  ct(ms.length?(i.sale_size||'FREE')+' / 단위 cm':'상세 실측은 확인 후 안내 예정입니다.',1382,'400 26px "Noto Sans KR", sans-serif',GR);
   hl(1450,'#969696');
   const items = ms.length ? ms : [{label:'총장',value:'—'},{label:'가슴',value:'—'},{label:'어깨',value:'—'},{label:'소매',value:'—'}];
   const perRow=Math.min(4,items.length), rows=Math.ceil(items.length/perRow); let yy=1450;
@@ -712,11 +1102,13 @@ async function renderSize(){
   }
   ct('SIZE  '+i.sale_size, yy+40,'500 30px "Noto Sans KR", sans-serif',DK);
   ct(i.sale_colors.map(c=>c.name).join(' · ')+(i.material_customer?'  /  '+i.material_customer.replace(/\s*\/\s*/g,' · '):''), yy+90,'400 28px "Noto Sans KR", sans-serif',GR);
-  ct('측정 방법에 따라 1~2cm의 오차가 있을 수 있습니다.', yy+160,'400 24px "Noto Sans KR", sans-serif',GR);
+  ct('측정 위치는 도식화를 참고해 주세요.', yy+150,'400 24px "Noto Sans KR", sans-serif',GR);
+  ct('측정 방법에 따라 1~3cm의 오차가 있을 수 있습니다.', yy+190,'400 24px "Noto Sans KR", sans-serif',GR);
   return cv.toDataURL('image/png');
 }
 async function renderAll(){
   readForm(); log('상세페이지·사이즈표 만드는 중…');
+  if(S.line&&S.line.img){ const have=(S.line.lines||[]).map(l=>l.label); if(msLabels().some(l=>!have.includes(l))) await measureLine(); }
   S.out.detail=await renderDetail(); S.out.size=await renderSize();
   showOut(); log('결과물 완료','ok'); saveDraft(true);
 }
@@ -741,17 +1133,21 @@ async function saveAll(){
   let n=1; const pad=k=>String(k).padStart(2,'0');
   for(const [ci,c] of i.sale_colors.entries()){
     for(const v of ['front','side']){ const cut=(S.cuts[ci]||{})[v]; if(!cut||!cut.img) continue;
+      if(v==='front' && labelsOn()){ await run('api_uploadFile', S.code, F.shotsId, `${fn}_${pad(n++)}_${c.name}_정면_라벨.png`, 'image/png', b64(composeFront(cut.img).toDataURL('image/png'))); continue; }
       const ext=cut.mime==='image/png'?'png':'jpg';
       await run('api_uploadFile', S.code, F.shotsId, `${fn}_${pad(n++)}_${c.name}_${v==='front'?'정면':'사선'}.${ext}`, cut.mime, cut.b64); }
   }
   if($('useCrops').checked) for(const c of S.crops){ await run('api_uploadFile', S.code, F.shotsId, `${fn}_${pad(n++)}_디테일_${safeName(c.label)}.jpg`,'image/jpeg', b64(cropCanvas(c).toDataURL('image/jpeg',.92))); }
   await run('api_uploadFile', S.code, F.shotsId, `${fn}_${pad(n++)}_사이즈표.png`,'image/png', b64(S.out.size));
+  if(S.line&&S.line.b64) await run('api_uploadFile', S.code, F.shotsId, `${fn}_${pad(n++)}_도식화.png`, S.line.mime, S.line.b64);
   log('제품샷 업로드 완료');
   for(const [k,im] of S.images.entries()) await run('api_uploadFile', S.code, F.srcId, `원본_${pad(k)}.jpg`,'image/jpeg', b64(im.full.dataUrl));
   log('공급처 자료 원본 보관');
-  const R=await run('api_finalize', S.code, { info:i, cost:costNow(), folders:F, addJakji:$('f_jakji').checked });
+  let jakjiUrl='';
+  if($('f_jakji').checked){ log('작지 만드는 중…'); const J=await renderJakji(); const up=await run('api_uploadFile', S.code, F.productId, fn+'_작업지시서.png','image/png', b64(J)); jakjiUrl=up.url; S.out.jakji=J; log('작지 업로드'); }
+  const R=await run('api_finalize', S.code, { info:i, cost:costNow(), folders:F, addJakji:$('f_jakji').checked, jakjiUrl });
   const sheetUrl='https://docs.google.com/spreadsheets/d/1olJ4HFFMF308F1jATmD-jBxpOXYjUHnaNcui4AaNfTA/edit#gid=2098756701&range=A'+R.row;
-  $('links').innerHTML=`<a href="${F.productUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${sheetUrl}" target="_blank">📊 샘플시트 ${R.row}행</a><a href="${R.txtUrl}" target="_blank">📝 상품정보.txt</a>`+(R.jakjiRow?`<div class="muted">작지 시트 ${R.jakjiRow}행 추가됨</div>`:'')+`<div class="muted">판매가 ${won(R.price.price)}원 · ${R.price.formula}</div>`
+  $('links').innerHTML=`<a href="${F.productUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${sheetUrl}" target="_blank">📊 샘플시트 ${R.row}행</a><a href="${R.txtUrl}" target="_blank">📝 상품정보.txt</a>`+(jakjiUrl?`<a href="${jakjiUrl}" target="_blank">🧾 작업지시서</a>`:'')+(R.jakjiRow?`<div class="muted">작지 시트 ${R.jakjiRow}행 추가됨</div>`:'')+`<div class="muted">판매가 ${won(R.price.price)}원 · ${R.price.formula}</div>`
     +`<div class="btns"><button class="pri" onclick="newProduct()">새 상품 등록</button></div>`;
   log(`저장 완료 · 샘플시트 ${R.row}행 · 판매가 ${won(R.price.price)}원`,'ok');
   S.saved={ folderUrl:F.productUrl, sheetUrl, row:R.row, price:R.price.price, txtUrl:R.txtUrl };
