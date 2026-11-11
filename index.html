@@ -292,6 +292,16 @@
       <div id="c24Cats" class="c24list"></div>
       <label>메인진열</label><div id="c24Mains" class="chips"></div>
       <label>대표이미지 (배너 중 1장)</label><div id="c24Rep" class="c24imgs"></div>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0">
+        <b style="font-size:14px">AI 모델컷 만들기</b> <span class="muted" style="font-size:12px">기준 모델 사진에 우리 옷을 입히고 포즈를 바꿔요</span>
+        <label>기준 모델 사진 (하나 고르기 · 한 번 올리면 다음 상품에도 계속 써요)</label>
+        <div id="mgLib" class="c24imgs"></div>
+        <div class="btns" style="margin:6px 0"><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 10px;font-size:13px;background:#fff;cursor:pointer">＋ 기준 모델 추가<input type="file" id="mgAdd" accept="image/*" multiple style="display:none"></label><button class="sm" id="mgDel">고른 기준 삭제</button></div>
+        <div class="row"><div><label>입힐 컬러</label><select id="mgColor"></select></div><div><label>화질</label><select id="mgQ"><option value="">가성비</option><option value="high">고화질 (크레딧 더 씀)</option></select></div></div>
+        <label>포즈 (정면 전신은 항상 먼저 만들고, 나머지는 그 컷을 보고 포즈만 바꿔요)</label>
+        <div class="chips" id="mgPoses"></div>
+        <div class="btns"><button class="pri" id="mgGo">모델컷 생성</button></div>
+      </div>
       <label>모델컷 (누른 순서대로 배치 — 1번: 로고·문구 들어간 첫 장, 2·3번: 나란히, 그다음 한 장씩)</label>
       <div class="btns" style="margin:4px 0 8px"><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 10px;font-size:13px;background:#fff;cursor:pointer">＋ 모델컷 추가 (보정한 사진)<input type="file" id="c24AddModel" accept="image/*" multiple style="display:none"></label><button class="sm" id="c24ModelClear">선택 모두 해제</button><button class="sm" id="c24ModelBuild">모델 섹션 미리보기</button></div>
       <div id="c24Models" class="c24imgs"></div>
@@ -1667,6 +1677,63 @@ $('c24AddModel').onchange=async e=>{
 };
 $('c24ModelClear').onclick=()=>{ C24.models.clear(); S.out.models=null; show('c24ModelPv',false); drawC24Imgs(); };
 $('c24ModelBuild').onclick=()=>guard(async()=>{ const u=await buildModelSection(); if(!u) throw new Error('모델컷을 먼저 골라주세요 (누른 순서대로 배치돼요).'); });
+/* ── AI 모델컷: 기준 모델 사진 + 우리 제품컷 → 착용컷, 그 컷으로 포즈 바꾸기 ── */
+const MG_POSES=[
+  {k:'front', n:'정면 전신', p:null},
+  {k:'back', n:'뒷모습', p:'full-body back view, the model turned away from the camera so the back of the garment is clearly visible'},
+  {k:'walk', n:'걷는 사선', p:'full-body three-quarter view walking toward the camera, one leg forward, relaxed arms, slight head turn'},
+  {k:'upper', n:'상반신', p:'upper-body crop from mid-thigh up, one hand lightly touching the collar, garment details clearly visible'},
+  {k:'sit', n:'앉은 포즈', p:'crouching low with knees bent, full body in frame, forearms resting on the knees'}
+];
+const MG={ lib:null, sel:lsGet('mg_sel')||null, poses:new Set(['front','back','walk','upper']) };
+async function mgLoad(){ try{ MG.lib=await run('api_modelLib', S.code); }catch(e){ MG.lib=[]; log('기준 모델 사진 불러오기 실패: '+e.message,'err'); } drawMg(); }
+function drawMg(){
+  const lib=$('mgLib'); lib.innerHTML='';
+  if(MG.lib && !MG.lib.some(x=>x.id===MG.sel)) MG.sel=MG.lib[0]?MG.lib[0].id:null;
+  (MG.lib||[]).forEach(m=>{ const d=document.createElement('div'); d.className='it'+(m.id===MG.sel?' on':''); d.innerHTML=`<img src="${m.thumb}">${m.id===MG.sel?'<span class="ck">기준</span>':''}`; d.onclick=()=>{ MG.sel=m.id; lsSet('mg_sel',m.id); drawMg(); }; lib.appendChild(d); });
+  if(MG.lib && !MG.lib.length) lib.innerHTML='<div class="muted" style="grid-column:1/-1">기준 모델 사진이 없어요 — "＋ 기준 모델 추가"로 평소 쓰던 모델 사진(전신·깔끔한 배경)을 올려주세요</div>';
+  if(S.info){ const cs=$('mgColor'), v=cs.value; cs.innerHTML=S.info.sale_colors.map((c,i)=>`<option value="${i}">${esc(c.name||('컬러'+(i+1)))}</option>`).join(''); if(v && cs.options[v]) cs.value=v; }
+  const ps=$('mgPoses'); ps.innerHTML='';
+  MG_POSES.forEach(p=>{ const on=p.k==='front'||MG.poses.has(p.k); const b=document.createElement('button'); b.className='sm chip'+(on?' on':''); b.textContent=(on?'✓ ':'')+p.n;
+    b.onclick=()=>{ if(p.k==='front') return; MG.poses.has(p.k)?MG.poses.delete(p.k):MG.poses.add(p.k); drawMg(); }; ps.appendChild(b); });
+  $('mgGo').textContent=`모델컷 생성 (${1+MG_POSES.filter(p=>p.k!=='front'&&MG.poses.has(p.k)).length}장)`;
+}
+$('mgAdd').onchange=e=>guard(async()=>{
+  const fs=[...e.target.files]; e.target.value='';
+  for(const f of fs){ const p=await prepImage(f); const r=await run('api_modelLibAdd', S.code, f.name.replace(/\.[^.]+$/,''), p.full.dataUrl.split(',')[1]); MG.sel=r.id; lsSet('mg_sel',r.id); }
+  log(`기준 모델 사진 ${fs.length}장 추가됨`,'ok'); await mgLoad();
+});
+$('mgDel').onclick=()=>guard(async()=>{ if(!MG.sel) return; if(!confirm('고른 기준 모델 사진을 지울까요? (드라이브 휴지통으로 가요)')) return; await run('api_modelLibDel', S.code, MG.sel); MG.sel=null; await mgLoad(); });
+async function mgAddResult(r, label){
+  const im=await loadImg('data:'+r.mime+';base64,'+r.b64);
+  const toJ=(max,q)=>{ const s=Math.min(1,max/Math.max(iw(im),ih(im))); const cv=document.createElement('canvas'); cv.width=Math.round(iw(im)*s); cv.height=Math.round(ih(im)*s); cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return cv; };
+  const fc=toJ(2400), full=fc.toDataURL('image/jpeg',.93), api=toJ(1280).toDataURL('image/jpeg',.88);
+  const p={ name:`모델_${label}.jpg`, key:newId(), fid:null, model:true, full:{dataUrl:full, w:fc.width, h:fc.height, img:await loadImg(full)}, api:{mime:'image/jpeg', b64:api.split(',')[1]} };
+  S.images.push(p); C24.models.add(p.key); S.out.models=null; show('c24ModelPv',false);
+  drawThumbsRaw(); drawC24Imgs(); saveDraft(true);
+  return p;
+}
+$('mgGo').onclick=()=>guard(async()=>{
+  readForm(); if(!S.info) throw new Error('먼저 상품을 분석해 주세요.');
+  if(!MG.sel) throw new Error('기준 모델 사진을 골라주세요 (없으면 "＋ 기준 모델 추가").');
+  const ci=Number($('mgColor').value||0), c=S.info.sale_colors[ci]||{}, cut=S.cuts[ci]||{};
+  const garment=[];
+  if(cut.front&&cut.front.img) garment.push(jpegOf(cut.front.img,1024,'#fff'));
+  if(cut.side&&cut.side.img) garment.push(jpegOf(cut.side.img,1024,'#fff'));
+  refIndices().slice(0, garment.length?1:3).forEach(i=>garment.push(S.images[i].api));
+  if(!garment.length) throw new Error('옷 사진이 없어요 — 제품컷을 먼저 만들거나 사진을 넣어주세요.');
+  const common={ garment, colorEn:c.en||c.name, hex:c.hex, kind:garmentKind(), hint:neutralHint(S.info.ghost_prompt||S.info.product_name), quality:$('mgQ').value };
+  const cname=c.name||'컬러';
+  log(`${cname} 모델컷: 기준 모델에 옷 입히는 중… (1~3분)`);
+  const r0=await genImage('api_generateModel', {...common, mode:'swap', baseId:MG.sel}, `${cname} 모델컷 정면`);
+  const base=await mgAddResult(r0, `${cname}_정면`);
+  log(`${cname} 모델컷 정면 완료`,'ok');
+  const rest=MG_POSES.filter(p=>p.k!=='front'&&MG.poses.has(p.k));
+  await pool(rest.map(p=>async()=>{ log(`${cname} 모델컷 ${p.n} 만드는 중…`);
+    const r=await genImage('api_generateModel', {...common, garment:garment.slice(0,2), mode:'pose', pose:p.p, base:base.api}, `${cname} 모델컷 ${p.n}`);
+    await mgAddResult(r, `${cname}_${p.n}`); log(`${cname} 모델컷 ${p.n} 완료`,'ok'); }), 3, '모델컷 일부가 실패했어요 — 다시 눌러 주세요');
+  log('모델컷 완료 — 아래에서 순서대로 골라 "모델 섹션 미리보기"','ok');
+});
 /** 이은 상세 모델 섹션 (르딘 상세 양식): 1100px, 첫 장 풀블리드+문구·로고, 2·3번 나란히, 이후 풀/여백 번갈아 */
 async function buildModelSection(){
   const ims=[...C24.models].map(k=>S.images.find(x=>x.key===k)).filter(Boolean).map(x=>x.full.img);
@@ -1716,6 +1783,7 @@ function c24Fill(){
   }
   drawC24Imgs();
   if(!C24.st) c24Status(); else show('c24Form', !!C24.st.connected);
+  if(!MG.lib) mgLoad(); else drawMg();
 }
 function c24LinksHtml(no){
   return `<a href="${C24_SHOP}/disp/admin/shop1/product/productmodify?product_no=${no}" target="_blank">🛠 카페24 관리자에서 열기 (${no})</a><a href="${C24_FRONT}/product/detail.html?product_no=${no}" target="_blank">🛍 쇼핑몰 상품 페이지</a><a href="https://mp.cafe24.com/mp/product/front/detail?product_no=${no}" target="_blank">🔁 마켓플러스 (에이블리·큐텐 전송)</a>`;
