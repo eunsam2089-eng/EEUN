@@ -54,6 +54,13 @@
   .price b { font-size:20px; }
   .cuts { display:grid; gap:12px; }
   .cutrow { display:grid; grid-template-columns:auto 1fr 1fr; gap:10px; align-items:start; }
+  .cutrow.three { grid-template-columns:auto 1fr 1fr 1fr; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; border-color:#ccc; }
+  .chip.on { border-color:#111; box-shadow:inset 0 0 0 1px #111; }
+  .chip b { background:#111; color:#fff; border-radius:9px; padding:0 6px; font-size:11px; }
+  #labViews button.on { background:#fff; color:#111; }
+  #labViews button { background:#333; color:#fff; border-color:#555; }
   .cutrow .cn { font-size:13px; padding-top:6px; display:flex; align-items:center; gap:6px; min-width:64px; }
   .dot { width:14px; height:14px; border-radius:50%; display:inline-block; border:1px solid rgba(0,0,0,.1); }
   .slot { background:#f1f1f1; border-radius:8px; aspect-ratio:820/915; display:grid; place-items:center; color:var(--sub); font-size:12px; position:relative; overflow:hidden; }
@@ -212,6 +219,7 @@
     <div class="cuts" id="cuts"></div>
     <div class="cutrow" style="margin-top:12px"><div class="cn">사이즈표<br>도식화</div><div class="slot lineslot" id="lineSlot"></div></div>
     <div class="chk"><input type="checkbox" id="hq"><span>제품컷 고화질 (크레딧 더 씀 · 기본은 가성비 화질)</span></div>
+    <div class="chk"><input type="checkbox" id="withBack"><span>뒷면 컷도 만들기 (뒷면 배너용 · 컬러당 1장 더)</span></div>
     <div class="chk"><input type="checkbox" id="useCrops" checked><span>디테일 클로즈업 3장 넣기 (탭해서 영역 조정)</span></div>
     <div class="crops" id="crops"></div>
   </section>
@@ -221,6 +229,19 @@
     <div class="out">
       <div><div class="muted">상세페이지</div><div class="pv"><img id="pvDetail"></div><a id="dlDetail" class="muted" download>다운로드</a></div>
       <div><div class="muted">사이즈표</div><div class="pv"><img id="pvSize"></div><a id="dlSize" class="muted" download>다운로드</a></div>
+    </div>
+    <div id="bnrBox">
+      <h3 style="margin:22px 0 4px;font-size:15px">배너 <span class="muted" style="font-weight:400">· 제품컷으로 만들어서 GPT 크레딧 안 씀 · 상세페이지와 별도 파일</span></h3>
+      <label>넣을 컬러 (누른 순서대로 배치)</label>
+      <div id="bnrColors" class="chips"></div>
+      <div class="row3">
+        <div><label>배치</label><select id="bnrMode"><option value="each">컬러별 한 장씩</option><option value="row">한 장에 나란히</option></select></div>
+        <div><label>비율</label><select id="bnrRatio"><option value="34">세로 3:4 (1200×1600)</option><option value="11">정사각 (1200×1200)</option></select></div>
+        <div><label>앞면 컷</label><select id="bnrView"><option value="side">사선 3/4</option><option value="front">정면</option></select></div>
+      </div>
+      <div class="chk"><input type="checkbox" id="bnrBack"><span>뒷면 배너도 (뒷면 컷 없으면 생성 · 크레딧 사용)</span></div>
+      <div class="btns"><button id="btnBanner">배너 만들기</button></div>
+      <div id="bnrOut" class="out"></div>
     </div>
     <div class="btns"><button class="pri" id="btnSave">드라이브·시트 저장</button><button id="btnRerender">다시 만들기</button></div>
     <div class="links" id="links"></div>
@@ -235,6 +256,7 @@
 </div>
 <div id="labM" class="hidden">
   <div class="bar"><b id="labTitle"></b><span id="labInfo" style="color:#ccc;font-size:13px"></span></div>
+  <div class="bar" id="labViews"><button class="sm" data-v="front">정면</button><button class="sm" data-v="side">사선</button><button class="sm" data-v="back">뒷면</button><button class="sm hidden" id="labOff" style="background:#333;color:#fff">이 컷에서 빼기</button></div>
   <div style="color:#bbb;font-size:12px">사진을 누르거나 끌어서 라벨 위치를 정하세요 (빨간 점선이 지금 라벨)</div>
   <canvas id="labC"></canvas>
   <div class="bar"><span>크기</span><button class="sm" id="labMinus" style="background:#333;color:#fff;border-color:#555">−</button><input type="range" id="labSize" min="0.5" max="10" step="0.1"><button class="sm" id="labPlus" style="background:#333;color:#fff;border-color:#555">+</button></div>
@@ -372,6 +394,7 @@ const DB={ db:null,
   async set(k,v){ const db=await this.open(); return new Promise((res,rej)=>{ const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); },
   async del(k){ const db=await this.open(); return new Promise(res=>{ const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>res(); }); }
 };
+const VIEWS=['front','side','back'], VNAME={front:'정면',side:'사선',back:'뒷면'};
 let draftTimer=null, restoring=false;
 const MAX_LOCAL=8;
 S.workId=null; S.saved=null; S.works=[];
@@ -387,13 +410,13 @@ function thumbOf(){
 function snapshot(){
   if(S.info) try{ readForm(); }catch(e){}
   const one=o=>o&&(o.b64||o.fid)&&!o.loading ? {mime:o.mime, fid:o.fid||null, b64:o.fid?null:o.b64} : (o&&o.job?{job:o.job}:null);
-  const cuts={}; Object.entries(S.cuts||{}).forEach(([ci,o])=>{ cuts[ci]={}; ['front','side'].forEach(v=>{ const c=one(o&&o[v]); if(c) cuts[ci][v]=c; }); });
+  const cuts={}; Object.entries(S.cuts||{}).forEach(([ci,o])=>{ cuts[ci]={}; VIEWS.forEach(v=>{ const c=one(o&&o[v]); if(c) cuts[ci][v]=c; }); });
   const line = S.line&&(S.line.b64||S.line.fid)&&!S.line.loading ? {mime:S.line.mime, fid:S.line.fid||null, b64:S.line.fid?null:S.line.b64, lines:S.line.lines||[]} : (S.line&&S.line.job?{job:S.line.job}:null);
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h})),
-    info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked} : null,
+    info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
     cuts, line, crops:S.crops, useCrops:$('useCrops').checked, rendered:!!(S.out&&S.out.detail), saved:S.saved,
-    labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,pos:L.pos,method:L.method,placed:!!L.placed})) };
+    labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
   s.name=(s.info&&s.info.product_name)||(s.txt||'').split('\n')[0].slice(0,28)||'이름 없는 작업';
   s.status=statusOf(s); s.photos=s.images.length; s.thumb=thumbOf();
   return s;
@@ -433,7 +456,7 @@ function syncNow(){
       const fid=await workFolderId(wid);
       const put=async(obj,name,mime,b64)=>{ if(!obj||obj.fid||!b64||obj.loading) return; const up=await run('api_uploadFile', S.code, fid, name, mime, b64); obj.fid=up.id; };
       for(const im of [...S.images]){ if(S.workId!==wid) return; if(!im.key) im.key=newId(); await put(im, `img_${im.key}.jpg`, 'image/jpeg', im.full.dataUrl.split(',')[1]); }
-      for(const [ci,o] of Object.entries(S.cuts||{})) for(const v of ['front','side']){ if(S.workId!==wid) return; const c=o&&o[v]; if(c&&c.b64) await put(c, `cut_${ci}_${v}.${c.mime==='image/png'?'png':'jpg'}`, c.mime, c.b64); }
+      for(const [ci,o] of Object.entries(S.cuts||{})) for(const v of VIEWS){ if(S.workId!==wid) return; const c=o&&o[v]; if(c&&c.b64) await put(c, `cut_${ci}_${v}.${c.mime==='image/png'?'png':'jpg'}`, c.mime, c.b64); }
       if(S.workId!==wid) return;
       if(S.line&&S.line.b64) await put(S.line, 'line.png', S.line.mime||'image/png', S.line.b64);
       if(S.workId!==wid) return;
@@ -515,7 +538,7 @@ async function apiFromDataUrl(dataUrl){
   cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return { mime:'image/jpeg', b64: cv.toDataURL('image/jpeg',.85).split(',')[1] };
 }
 function resetWork(){
-  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; S.labels=[]; S.line=null;
+  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; S.labels=[]; S.line=null; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false}; $('withBack').checked=false;
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
   ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
 }
@@ -528,7 +551,7 @@ async function restoreDraft(d, id){
     const asset=async fid=>run('api_asset', S.code, fid);
     const jobs=[];
     (d.images||[]).forEach(x=>jobs.push(async()=>{ const url=x.full||await asset(x.fid); return {k:'img', x, url}; }));
-    Object.entries(d.cuts||{}).forEach(([ci,o])=>['front','side'].forEach(v=>{ const c=o[v]; if(!c) return;
+    Object.entries(d.cuts||{}).forEach(([ci,o])=>VIEWS.forEach(v=>{ const c=o[v]; if(!c) return;
       if(c.b64||c.fid) jobs.push(async()=>({k:'cut', ci, v, c, url:c.b64?'data:'+c.mime+';base64,'+c.b64:await asset(c.fid)}));
       else if(c.job) pending.push(()=>genCut(Number(ci),v,c.job)); }));
     if(d.line&&(d.line.b64||d.line.fid)) jobs.push(async()=>({k:'line', url:d.line.b64?'data:'+(d.line.mime||'image/png')+';base64,'+d.line.b64:await asset(d.line.fid)}));
@@ -548,11 +571,12 @@ async function restoreDraft(d, id){
     drawThumbsRaw();
     if(d.info){
       S.info=d.info; normalizeInfo(S.info); fillForm();
-      if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; $('hq').checked=!!d.form.hq; show('jakjiBox',!!d.form.jakji); updatePrice(); }
+      if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; $('hq').checked=!!d.form.hq; $('withBack').checked=!!d.form.withBack; show('jakjiBox',!!d.form.jakji); updatePrice(); }
+      if(d.bnr) S.bnr={...S.bnr, ...d.bnr};
       if(S.info.made){ drawLabelLib(); drawLabelSel(); }
       $('useCrops').checked=d.useCrops!==false;
       show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
-      if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); showOut(); }
+      if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); await makeBanners(false); showOut(); }
       if(S.saved) $('links').innerHTML=`<a href="${S.saved.folderUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${S.saved.sheetUrl}" target="_blank">📊 샘플시트 ${S.saved.row}행</a><div class="muted">이미 저장된 작업이에요. 고쳐서 "드라이브·시트 저장"을 다시 누르면 같은 폴더·행이 갱신돼요.</div>`;
     }
     log('작업을 불러왔어요: '+((S.info&&S.info.product_name)||'입력 중'),'ok');
@@ -642,6 +666,7 @@ function updatePrice(){
 ['input','change'].forEach(ev=>$('secReview').addEventListener(ev,()=>saveDraft()));
 $('useCrops').addEventListener('change',()=>saveDraft());
 $('hq').addEventListener('change',()=>saveDraft());
+$('withBack').addEventListener('change',()=>{ drawCuts(); saveDraft(); });
 $('f_made').onchange=()=>{ const on=$('f_made').checked; show('labelsBox',on); if(on){ $('f_jakji').checked=true; show('jakjiBox',true); drawLabelLib(); drawLabelSel(); } };
 $('f_jakji').onchange=()=>show('jakjiBox',$('f_jakji').checked);
 
@@ -676,16 +701,17 @@ function refIndices(){
   if(!ix.length) ix=[...Array(n).keys()].slice(0,3);
   return ix.slice(0,4);
 }
+function showBack(){ return $('withBack').checked || Object.values(S.cuts||{}).some(o=>o&&o.back&&(o.back.img||o.back.loading)); }
 function drawCuts(){
   if(!S.info) return;
   const box=$('cuts'); box.innerHTML='';
   S.info.sale_colors.forEach((c,ci)=>{
-    const r=document.createElement('div'); r.className='cutrow';
+    const r=document.createElement('div'); const vs=showBack()?VIEWS:['front','side']; r.className='cutrow'+(vs.length===3?' three':'');
     r.innerHTML=`<div class="cn"><span class="dot" style="background:${c.hex}"></span>${c.name||'컬러'}</div>`;
-    ['front','side'].forEach(v=>{
+    vs.forEach(v=>{
       const st=(S.cuts[ci]||{})[v];
       const s=document.createElement('div'); s.className='slot';
-      s.innerHTML = `<span class="tag">${v==='front'?'정면':'사선'}</span>` +
+      s.innerHTML = `<span class="tag">${VNAME[v]}</span>` +
         (st && st.loading ? '<div class="spin"></div>' : st && st.img ? `<img src="${st.img.src}">` : '없음') +
         `<div class="acts"><button class="sm" data-a="gen">${st&&st.img?'다시':'생성'}</button><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 8px;font-size:13px;background:#fff;cursor:pointer">내 사진<input type="file" accept="image/*" style="display:none"></label></div>`;
       s.querySelector('[data-a=gen]').onclick=()=>guard(()=>genCut(ci,v));
@@ -745,11 +771,13 @@ async function ensureAlpha(r){
 async function genCut(ci, view, resumeJob){
   readForm();
   const c=S.info.sale_colors[ci]; if(!c) return;
-  const nm=`${c.name} ${view==='front'?'정면':'사선'}`;
+  const nm=`${c.name} ${VNAME[view]}`;
   S.cuts[ci]=S.cuts[ci]||{}; S.cuts[ci][view]={loading:true, job:resumeJob}; drawCuts();
   if(!resumeJob) log(`${nm} 제품컷 생성 중… (좋은 모델 1~3분)`);
   try{
-    const req={ view, colorEn:c.en||c.name, hex:c.hex, hint:S.info.ghost_prompt||S.info.product_name, refs: refIndices().slice(0,3).map(i=>S.images[i].api), quality: $('hq').checked?'high':'' };
+    const first=ci>0 ? ((S.cuts[0]||{})[view]||{}) : {}; const base=refIndices().slice(0,3).map(i=>S.images[i].api);
+    const req={ view, colorEn:c.en||c.name, hex:c.hex, hint:S.info.ghost_prompt||S.info.product_name, quality: $('hq').checked?'high':'',
+      refs: first.img ? [jpegOf(first.img,1024,'#fff'), ...base.slice(0,2)] : base, matchFirst: !!first.img };
     const r=await genImage('api_generateCut', req, nm, job=>{ S.cuts[ci][view]={loading:true, job}; saveDraft(true); }, resumeJob);
     S.cuts[ci][view]=await ensureAlpha(r);
     log(`${nm} 완료${r.model?' · '+r.model:''}`,'ok');
@@ -763,13 +791,16 @@ async function pool(tasks, n, failMsg){
   if(errs.length) throw new Error(failMsg || `이미지 ${errs.length}개 실패 — 해당 칸의 '다시'를 눌러주세요.`);
 }
 async function genAllCuts(){
-  const tasks=[]; let frontDone; const frontP=new Promise(r=>frontDone=r);
-  S.info.sale_colors.forEach((c,ci)=>['front','side'].forEach(v=>{
+  const views=$('withBack').checked?VIEWS:['front','side'], first={};
+  views.forEach(v=>{ let r; first[v]={p:new Promise(x=>r=x)}; first[v].r=r; if(((S.cuts[0]||{})[v]||{}).img || !S.info.sale_colors.length) r(); });
+  const t0=[], tN=[];
+  S.info.sale_colors.forEach((c,ci)=>views.forEach(v=>{
     if(((S.cuts[ci]||{})[v]||{}).img) return;
-    if(ci===0&&v==='front') tasks.unshift(()=>genCut(0,'front').finally(frontDone)); else tasks.push(()=>genCut(ci,v));
+    if(ci===0) t0.push(()=>genCut(0,v).finally(first[v].r));
+    else tN.push(async()=>{ await first[v].p; await genCut(ci,v); }); // 첫 컬러 컷을 보고 같은 각도·크기·조명으로
   }));
-  if(((S.cuts[0]||{}).front||{}).img || !S.info.sale_colors.length) frontDone();
-  if(!(S.line&&S.line.img)) tasks.push(async()=>{ await frontP; await genLine(); });
+  const tasks=[...t0, ...tN];
+  if(!(S.line&&S.line.img)) tasks.push(async()=>{ await first.front.p; await genLine(); });
   await pool(tasks, 3);
 }
 
@@ -1015,7 +1046,7 @@ function drawLabelSel(){
     const d=document.createElement('div'); d.className='lsel';
     d.innerHTML=`<img src="${L.dataUrl}"><div><b style="font-size:14px">${k+1}. ${esc(L.name)}</b>
       <div class="row" style="margin-top:6px"><input type="text" placeholder="위치 (예: 목 안쪽 중앙)" value="${esc(L.pos)}"><select>${['봉제','프레스','금형·리벳','부착(기타)'].map(m=>`<option${m===L.method?' selected':''}>${m}</option>`).join('')}</select></div>
-      <div class="muted" style="margin-top:4px">실물 가로 ${L.wcm.toFixed(1)}cm${L.placed?' · 위치 지정됨':' · 위치 미지정'}</div>
+      <div class="muted" style="margin-top:4px">실물 가로 ${L.wcm.toFixed(1)}cm${L.placed?' · 위치 지정됨':' · 위치 미지정'}${L.v&&Object.keys(L.v).length?' · '+['front',...Object.keys(L.v)].map(v=>VNAME[v]).join('·')+' 컷에 표시':''}</div>
       <div class="btns" style="margin-top:6px"><button class="sm pri">위치·크기 정하기</button><button class="sm">빼기</button></div></div>`;
     const inp=d.querySelector('input'), sel=d.querySelector('select'); const [bPlace,bDel]=d.querySelectorAll('button');
     inp.oninput=()=>{ L.pos=inp.value; saveDraft(); }; sel.onchange=()=>{ L.method=sel.value; saveDraft(); };
@@ -1034,25 +1065,32 @@ function pxPerCm(img){
   if(Ch) return b.w/(Ch*1.6);
   return b.w/60;
 }
-function composeFront(img){
-  if(!img || !labelsOn()) return img;
+/** 라벨 위치 (정면은 기본, 사선·뒷면은 따로 붙인 경우만) */
+function posOf(L, view){ return view==='front' ? {xr:L.xr, yr:L.yr, rot:L.rot||0} : (L.v&&L.v[view]) || null; }
+function labelsOnView(view){ return $('f_made').checked && (S.labels||[]).some(L=>posOf(L,view)); }
+function composeFront(img){ return composeCut(img,'front'); }
+function composeCut(img, view){
+  if(!img || !labelsOnView(view)) return img;
   const cv=document.createElement('canvas'); cv.width=iw(img); cv.height=ih(img);
   const g=cv.getContext('2d'); g.drawImage(img,0,0);
   const b=alphaBBox(img), ppc=pxPerCm(img);
-  S.labels.forEach(L=>{ if(!L.img) return;
-    const w=Math.min(L.wcm,LABEL_MAX_CM)*ppc, h=w*ih(L.img)/iw(L.img), cx=b.x+L.xr*b.w, cy=b.y+L.yr*b.h;
-    g.save(); g.translate(cx,cy); g.rotate(L.rot*Math.PI/180);
+  S.labels.forEach(L=>{ const P=posOf(L,view); if(!L.img||!P) return;
+    const w=Math.min(L.wcm,LABEL_MAX_CM)*ppc, h=w*ih(L.img)/iw(L.img), cx=b.x+P.xr*b.w, cy=b.y+P.yr*b.h;
+    g.save(); g.translate(cx,cy); g.rotate(P.rot*Math.PI/180);
     g.shadowColor='rgba(0,0,0,.28)'; g.shadowBlur=Math.max(2,w*.03); g.shadowOffsetY=Math.max(1,w*.012);
     g.imageSmoothingQuality='high'; g.drawImage(L.img,-w/2,-h/2,w,h); g.restore(); });
   BBOX.set(cv,b);
   return cv;
 }
 let LE=null;
-function openLabelEditor(k){
-  const cut=(S.cuts[0]||{}).front;
-  if(!cut||!cut.img){ log('정면 제품컷을 먼저 만들어주세요 (제품컷 생성 또는 내 사진)','err'); return; }
-  LE={k, img:cut.img, b:alphaBBox(cut.img), ppc:pxPerCm(cut.img)};
-  const L=S.labels[k]; $('labSize').value=L.wcm; $('labRot').value=L.rot; $('labTitle').textContent=`${k+1}. ${L.name}`;
+function openLabelEditor(k, view){
+  view=view||'front';
+  const cut=(S.cuts[0]||{})[view];
+  if(!cut||!cut.img){ log(VNAME[view]+' 제품컷을 먼저 만들어주세요 (제품컷 생성 또는 내 사진)','err'); return; }
+  LE={k, view, img:cut.img, b:alphaBBox(cut.img), ppc:pxPerCm(cut.img)};
+  const L=S.labels[k], P=posOf(L,view); $('labSize').value=L.wcm; $('labRot').value=P?P.rot:0; $('labTitle').textContent=`${k+1}. ${L.name}`;
+  document.querySelectorAll('#labViews button').forEach(b=>{ const v=b.dataset.v, has=!!((S.cuts[0]||{})[v]||{}).img; b.disabled=!has; b.classList.toggle('on', v===view); });
+  show('labOff', view!=='front' && !!P);
   show('labM'); layoutLab();
 }
 function layoutLab(){
@@ -1062,14 +1100,18 @@ function layoutLab(){
 }
 function paintLab(){
   const cv=$('labC'), g=cv.getContext('2d'), L=S.labels[LE.k];
-  g.fillStyle=PAGE_BG; g.fillRect(0,0,cv.width,cv.height); g.drawImage(composeFront(LE.img),0,0,cv.width,cv.height);
-  const w=Math.min(L.wcm,LABEL_MAX_CM)*LE.ppc*LE.s, h=w*ih(L.img)/iw(L.img), cx=(LE.b.x+L.xr*LE.b.w)*LE.s, cy=(LE.b.y+L.yr*LE.b.h)*LE.s;
-  g.save(); g.translate(cx,cy); g.rotate(L.rot*Math.PI/180); g.strokeStyle='#ff4d4f'; g.setLineDash([5,4]); g.lineWidth=2; g.strokeRect(-w/2-5,-h/2-5,w+10,h+10); g.restore();
-  $('labInfo').textContent=`실물 가로 ${L.wcm.toFixed(1)}cm`+(L.wcm>4?' · 기본(4cm)보다 큼':'');
+  g.fillStyle=PAGE_BG; g.fillRect(0,0,cv.width,cv.height); g.drawImage(composeCut(LE.img,LE.view),0,0,cv.width,cv.height);
+  const P=posOf(L,LE.view);
+  if(P){ const w=Math.min(L.wcm,LABEL_MAX_CM)*LE.ppc*LE.s, h=w*ih(L.img)/iw(L.img), cx=(LE.b.x+P.xr*LE.b.w)*LE.s, cy=(LE.b.y+P.yr*LE.b.h)*LE.s;
+    g.save(); g.translate(cx,cy); g.rotate(P.rot*Math.PI/180); g.strokeStyle='#ff4d4f'; g.setLineDash([5,4]); g.lineWidth=2; g.strokeRect(-w/2-5,-h/2-5,w+10,h+10); g.restore(); }
+  $('labInfo').textContent=(P?'':`${VNAME[LE.view]} 컷: 사진을 누르면 여기에도 붙어요 · `)+`실물 가로 ${L.wcm.toFixed(1)}cm`+(L.wcm>4?' · 기본(4cm)보다 큼':'');
 }
 (()=>{ const cv=$('labC'); let on=false;
   const mv=e=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left)*(cv.width/r.width)/LE.s, y=(e.clientY-r.top)*(cv.height/r.height)/LE.s, L=S.labels[LE.k];
-    L.xr=Math.min(Math.max((x-LE.b.x)/LE.b.w,0),1); L.yr=Math.min(Math.max((y-LE.b.y)/LE.b.h,0),1); L.placed=true; paintLab(); };
+    const xr=Math.min(Math.max((x-LE.b.x)/LE.b.w,0),1), yr=Math.min(Math.max((y-LE.b.y)/LE.b.h,0),1);
+    if(LE.view==='front'){ L.xr=xr; L.yr=yr; L.placed=true; }
+    else { L.v=L.v||{}; L.v[LE.view]={xr, yr, rot:(L.v[LE.view]||{}).rot||0}; show('labOff'); }
+    paintLab(); };
   cv.addEventListener('pointerdown',e=>{ on=true; cv.setPointerCapture(e.pointerId); mv(e); });
   cv.addEventListener('pointermove',e=>{ if(on) mv(e); });
   ['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>on=false));
@@ -1077,7 +1119,9 @@ function paintLab(){
 $('labSize').oninput=()=>{ S.labels[LE.k].wcm=Math.min(Number($('labSize').value),LABEL_MAX_CM); paintLab(); };
 const labStep=d=>{ const L=S.labels[LE.k]; L.wcm=Math.round(Math.min(Math.max(L.wcm+d,0.5),LABEL_MAX_CM)*10)/10; $('labSize').value=L.wcm; paintLab(); };
 $('labMinus').onclick=()=>labStep(-0.1); $('labPlus').onclick=()=>labStep(0.1);
-$('labRot').oninput=()=>{ S.labels[LE.k].rot=Number($('labRot').value); paintLab(); };
+$('labRot').oninput=()=>{ const L=S.labels[LE.k], r=Number($('labRot').value); if(LE.view==='front') L.rot=r; else if(L.v&&L.v[LE.view]) L.v[LE.view].rot=r; paintLab(); };
+document.querySelectorAll('#labViews button').forEach(b=>b.onclick=()=>openLabelEditor(LE.k, b.dataset.v));
+$('labOff').onclick=()=>{ const L=S.labels[LE.k]; if(L.v) delete L.v[LE.view]; show('labOff',false); paintLab(); };
 $('labOk').onclick=()=>{ S.labels[LE.k].placed=true; show('labM',false); drawLabelSel(); saveDraft(); };
 
 /* ───────────── 작업지시서 (작지) ───────────── */
@@ -1134,6 +1178,99 @@ async function renderJakji(){
   return cv.toDataURL('image/png');
 }
 
+/* ───────────── 배너 (제품컷으로 · GPT 크레딧 안 씀) ───────────── */
+S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false};
+const BN_MARGIN={x:0.08, y:0.11}; // 기존 무로고 배너 기준: 좌우 8% · 위아래 11%
+function bnrColors(){ const n=((S.info&&S.info.sale_colors)||[]).length; if(!Array.isArray(S.bnr.colors)) S.bnr.colors=[...Array(n).keys()]; S.bnr.colors=S.bnr.colors.filter(ci=>ci<n); return S.bnr.colors; }
+function drawBannerUI(){
+  if(!S.info) return; const box=$('bnrColors'); box.innerHTML='';
+  const sel=bnrColors();
+  S.info.sale_colors.forEach((c,ci)=>{
+    const k=sel.indexOf(ci), b=document.createElement('button'); b.className='sm chip'+(k>=0?' on':'');
+    b.innerHTML=`<span class="dot" style="background:${c.hex}"></span>${esc(c.name)}${k>=0?` <b>${k+1}</b>`:''}`;
+    b.onclick=()=>{ const s=bnrColors(), j=s.indexOf(ci); if(j>=0) s.splice(j,1); else s.push(ci); drawBannerUI(); saveDraft(); };
+    box.appendChild(b);
+  });
+  $('bnrMode').value=S.bnr.mode; $('bnrRatio').value=S.bnr.ratio; $('bnrView').value=S.bnr.view; $('bnrBack').checked=!!S.bnr.back;
+}
+['bnrMode','bnrRatio','bnrView'].forEach(id=>$(id).onchange=()=>{ S.bnr.mode=$('bnrMode').value; S.bnr.ratio=$('bnrRatio').value; S.bnr.view=$('bnrView').value; saveDraft(); });
+$('bnrBack').onchange=()=>{ S.bnr.back=$('bnrBack').checked; if(S.bnr.back){ $('withBack').checked=true; drawCuts(); } saveDraft(); };
+/** 컬러들을 같은 배율로 흰 배경 가운데에 (여백 비율 고정) */
+function renderBannerImg(items){
+  const W=1200, H=S.bnr.ratio==='11'?1200:1600, cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d'); g.fillStyle='#FFFFFF'; g.fillRect(0,0,W,H);
+  const bx=W*BN_MARGIN.x, by=H*BN_MARGIN.y, bw=W-bx*2, bh=H-by*2, gap=W*0.025;
+  const bb=items.map(im=>alphaBBox(im)), sumW=bb.reduce((a,b)=>a+b.w,0), maxH=Math.max(...bb.map(b=>b.h));
+  const s=Math.min((bw-gap*(items.length-1))/sumW, bh/maxH);
+  let x=(W-(sumW*s+gap*(items.length-1)))/2;
+  g.imageSmoothingQuality='high';
+  items.forEach((im,k)=>{ const b=bb[k], w=b.w*s, h=b.h*s; g.drawImage(im, b.x,b.y,b.w,b.h, x, (H-h)/2, w, h); x+=w+gap; });
+  return cv.toDataURL('image/jpeg',0.93);
+}
+/** 같은 배너 안의 컬러끼리 크기 통일: 모든 컬러가 들어가는 공통 배율로 한 장씩 */
+function renderEach(items){
+  const W=1200, H=S.bnr.ratio==='11'?1200:1600, bw=W*(1-BN_MARGIN.x*2), bh=H*(1-BN_MARGIN.y*2);
+  const bb=items.map(im=>alphaBBox(im)), s=Math.min(...bb.map(b=>Math.min(bw/b.w, bh/b.h)));
+  return items.map((im,k)=>{ const b=bb[k], cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
+    g.fillStyle='#FFFFFF'; g.fillRect(0,0,W,H); g.imageSmoothingQuality='high'; const w=b.w*s, h=b.h*s; g.drawImage(im,b.x,b.y,b.w,b.h,(W-w)/2,(H-h)/2,w,h);
+    return cv.toDataURL('image/jpeg',0.93); });
+}
+async function makeBanners(generateMissing){
+  if(!S.info) return; const cols=bnrColors(); S.out.banners=[];
+  if(!cols.length){ showBanners(); return; }
+  const views=[S.bnr.view].concat(S.bnr.back?['back']:[]);
+  if(generateMissing){
+    const miss=[]; views.forEach(v=>cols.forEach(ci=>{ if(!((S.cuts[ci]||{})[v]||{}).img) miss.push([ci,v]); }));
+    if(miss.length){ log(`배너용 컷 ${miss.length}개 생성 중… (${miss.map(([ci,v])=>S.info.sale_colors[ci].name+' '+VNAME[v]).join(', ')})`);
+      const m0=miss.filter(m=>m[0]===0), mN=miss.filter(m=>m[0]!==0); // 첫 컬러 먼저 → 다른 컬러가 같은 각도·크기로 맞춤
+      if(m0.length) await pool(m0.map(([ci,v])=>()=>genCut(ci,v)), 3);
+      if(mN.length) await pool(mN.map(([ci,v])=>()=>genCut(ci,v)), 3); }
+  }
+  for(const v of views){
+    const list=cols.map(ci=>({ci, im:(S.cuts[ci]||{})[v]&&composeCut(S.cuts[ci][v].img, v)})).filter(x=>x.im);
+    if(!list.length) continue;
+    const tag=v==='back'?'뒷면':'';
+    if(S.bnr.mode==='row') S.out.banners.push({name:`배너${tag?'_'+tag:''}_${list.map(x=>S.info.sale_colors[x.ci].name).join('·')}`, url:renderBannerImg(list.map(x=>x.im))});
+    else renderEach(list.map(x=>x.im)).forEach((url,k)=>S.out.banners.push({name:`배너${tag?'_'+tag:''}_${S.info.sale_colors[list[k].ci].name}`, url}));
+  }
+  showBanners();
+}
+function showBanners(){
+  const box=$('bnrOut'); box.innerHTML=''; const fn=safeName((S.info&&S.info.product_name)||'배너');
+  (S.out.banners||[]).forEach(b=>{ const d=document.createElement('div'); d.innerHTML=`<div class="pv" style="max-height:none"><img src="${b.url}"></div><a class="muted" download="${fn}_${safeName(b.name)}.jpg" href="${b.url}">${esc(b.name)} 다운로드</a>`; box.appendChild(d); });
+  if(!(S.out.banners||[]).length) box.innerHTML='<p class="muted">넣을 컬러를 고르고 "배너 만들기"를 눌러주세요.</p>';
+}
+$('btnBanner').onclick=()=>guard(async()=>{ readForm(); await makeBanners(true); saveDraft(true); log('배너 완료 · '+(S.out.banners||[]).length+'장','ok'); });
+
+/* ───────────── 작지 시트용 사진 (제품 + 라벨 위치·라벨) ───────────── */
+async function renderJakjiCard(){
+  await fontsReady();
+  const W=720, H=900, cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.textBaseline='top';
+  const F=(w,s)=>`${w} ${s}px "Noto Sans KR", sans-serif`, labs=S.labels||[], areaH=labs.length?640:860;
+  const cut=(S.cuts[0]||{}).front;
+  if(cut&&cut.img){
+    const img=composeCut(cut.img,'front'), b=alphaBBox(cut.img), sc=Math.min((W-60)/b.w,(areaH-40)/b.h), ox=(W-b.w*sc)/2, oy=20+(areaH-40-b.h*sc)/2;
+    g.drawImage(img,b.x,b.y,b.w,b.h,ox,oy,b.w*sc,b.h*sc);
+    const ppc=pxPerCm(cut.img);
+    labs.forEach((L,k)=>{ const cx=ox+L.xr*b.w*sc, cy=oy+L.yr*b.h*sc, r=Math.max(16,Math.min(L.wcm,10)*ppc*sc*0.7);
+      g.strokeStyle='#e5484d'; g.lineWidth=3; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.stroke();
+      const bx2=Math.min(cx+r+22,W-20), by2=Math.max(cy-r-22,20); g.beginPath(); g.moveTo(cx+r*.7,cy-r*.7); g.lineTo(bx2,by2); g.stroke();
+      g.fillStyle='#e5484d'; g.beginPath(); g.arc(bx2,by2,15,0,Math.PI*2); g.fill(); g.fillStyle='#fff'; g.font=F(700,17); g.textAlign='center'; g.fillText(String(k+1),bx2,by2-10); g.textAlign='left'; });
+  }
+  if(labs.length){
+    g.fillStyle='#eee'; g.fillRect(20,areaH,W-40,2);
+    const cw=(W-40)/Math.min(labs.length,3);
+    labs.slice(0,3).forEach((L,k)=>{ const x0=20+cw*k, bw=cw-20, bh=120, y0=areaH+18;
+      g.fillStyle='#f3f3f3'; g.fillRect(x0+10,y0,bw,bh);
+      if(L.img){ const s2=Math.min((bw-16)/iw(L.img),(bh-16)/ih(L.img)); g.drawImage(L.img,x0+10+(bw-iw(L.img)*s2)/2,y0+(bh-ih(L.img)*s2)/2,iw(L.img)*s2,ih(L.img)*s2); }
+      g.fillStyle='#e5484d'; g.beginPath(); g.arc(x0+24,y0+14,13,0,Math.PI*2); g.fill(); g.fillStyle='#fff'; g.font=F(700,15); g.textAlign='center'; g.fillText(String(k+1),x0+24,y0+5); g.textAlign='left';
+      g.fillStyle='#222'; g.font=F(500,17); g.fillText(`${L.method} · 가로 ${L.wcm.toFixed(1)}cm`,x0+12,y0+bh+10);
+      g.fillStyle='#555'; g.font=F(400,15); wrapText(g,L.pos||'위치 확인 필요',x0+12,y0+bh+36,bw,20); });
+  }
+  return cv.toDataURL('image/jpeg',0.86).split(',')[1];
+}
+
 /* ───────────── 렌더링 (EEUN 고정 양식) ───────────── */
 async function fontsReady(){
   const specs=['800 28px Inter','700 22px "Noto Sans KR"','400 17px "Noto Sans KR"','500 17px "Noto Sans KR"','900 40px "Noto Sans KR"'];
@@ -1170,7 +1307,7 @@ async function renderDetail(){
   i.sale_colors.forEach((c,ci)=>{
     const cut=S.cuts[ci]||{};
     boxes.push({cv:productBox(cut.front&&composeFront(cut.front.img), 640, 770), dot:c.hex});
-    if(cut.side&&cut.side.img) boxes.push({cv:productBox(cut.side.img, 560, 790)});
+    if(cut.side&&cut.side.img) boxes.push({cv:productBox(composeCut(cut.side.img,'side'), 560, 790)});
   });
   if($('useCrops').checked) S.crops.forEach(c=>boxes.push({cv:cropCanvas(c)}));
   const TOP=210, GAP=80, X0=90, LX=115;
@@ -1245,14 +1382,14 @@ async function renderSize(){
 async function renderAll(){
   readForm(); log('상세페이지·사이즈표 만드는 중…');
   if(S.line&&S.line.img){ const have=(S.line.lines||[]).map(l=>l.label); if(msLabels().some(l=>!have.includes(l))) await measureLine(); }
-  S.out.detail=await renderDetail(); S.out.size=await renderSize();
+  S.out.detail=await renderDetail(); S.out.size=await renderSize(); await makeBanners(false);
   showOut(); log('결과물 완료','ok'); saveDraft(true);
 }
 function showOut(){
   const fn=safeName(S.info.product_name);
   $('pvDetail').src=S.out.detail; $('dlDetail').href=S.out.detail; $('dlDetail').download=fn+'_상세페이지.jpg';
   $('pvSize').src=S.out.size; $('dlSize').href=S.out.size; $('dlSize').download=fn+'_사이즈표.png';
-  show('secOut');
+  drawBannerUI(); showBanners(); show('secOut');
 }
 $('btnRender').onclick=()=>guard(renderAll);
 $('btnRerender').onclick=()=>guard(renderAll);
@@ -1271,20 +1408,22 @@ async function saveAll(){
   const up=(folder,name,mime,data)=>T.push(()=>run('api_uploadFile', S.code, folder, name, mime, data));
   const cp=(obj,folder,name,mime,data)=>T.push(async()=>{ if(obj&&obj.fid){ try{ return await run('api_copyFile', S.code, obj.fid, folder, name); }catch(e){ if(!data) throw e; } } return run('api_uploadFile', S.code, folder, name, mime, data); });
   up(F.productId, fn+'_상세페이지.jpg','image/jpeg', b64(S.out.detail));
-  for(const [ci,c] of i.sale_colors.entries()) for(const v of ['front','side']){
+  for(const [ci,c] of i.sale_colors.entries()) for(const v of VIEWS){
     const cut=(S.cuts[ci]||{})[v]; if(!cut||!cut.img) continue; const k=n++;
-    if(v==='front' && labelsOn()) up(F.shotsId, `${fn}_${pad(k)}_${c.name}_정면_라벨.png`, 'image/png', b64(composeFront(cut.img).toDataURL('image/png')));
-    else cp(cut, F.shotsId, `${fn}_${pad(k)}_${c.name}_${v==='front'?'정면':'사선'}.${cut.mime==='image/png'?'png':'jpg'}`, cut.mime, cut.b64);
+    if(labelsOnView(v)) up(F.shotsId, `${fn}_${pad(k)}_${c.name}_${VNAME[v]}_라벨.png`, 'image/png', b64(composeCut(cut.img,v).toDataURL('image/png')));
+    else cp(cut, F.shotsId, `${fn}_${pad(k)}_${c.name}_${VNAME[v]}.${cut.mime==='image/png'?'png':'jpg'}`, cut.mime, cut.b64);
   }
+  (S.out.banners||[]).forEach(bn=>up(F.productId, `${fn}_${safeName(bn.name)}.jpg`, 'image/jpeg', b64(bn.url)));
   if($('useCrops').checked) for(const c of S.crops){ const k=n++; up(F.shotsId, `${fn}_${pad(k)}_디테일_${safeName(c.label)}.jpg`,'image/jpeg', b64(cropCanvas(c).toDataURL('image/jpeg',.92))); }
   up(F.shotsId, `${fn}_${pad(n++)}_사이즈표.png`,'image/png', b64(S.out.size));
   if(S.line&&S.line.b64){ const k=n++; cp(S.line, F.shotsId, `${fn}_${pad(k)}_도식화.png`, S.line.mime||'image/png', S.line.b64); }
   S.images.forEach((im,k)=>cp(im, F.srcId, `원본_${pad(k)}.jpg`, 'image/jpeg', b64(im.full.dataUrl)));
-  if($('f_jakji').checked){ log('작지 만드는 중…'); const J=await renderJakji(); S.out.jakji=J; T.push(async()=>{ const r=await run('api_uploadFile', S.code, F.productId, fn+'_작업지시서.png','image/png', b64(J)); jakjiUrl=r.url; return r; }); }
+  let jakjiThumb='';
+  if($('f_jakji').checked){ log('작지 만드는 중…'); const J=await renderJakji(); S.out.jakji=J; jakjiThumb=await renderJakjiCard(); T.push(async()=>{ const r=await run('api_uploadFile', S.code, F.productId, fn+'_작업지시서.png','image/png', b64(J)); jakjiUrl=r.url; return r; }); }
   let done=0;
   await pool(T.map(t=>async()=>{ await t(); done++; if(done===T.length||done%3===0) log(`업로드 ${done}/${T.length}`); }), 3, '파일 업로드가 일부 실패했어요 — "드라이브·시트 저장"을 다시 눌러주세요 (올라간 건 교체만 돼요)');
   log('업로드 완료');
-  const R=await run('api_finalize', S.code, { info:i, cost:costNow(), folders:F, addJakji:$('f_jakji').checked, jakjiUrl });
+  const R=await run('api_finalize', S.code, { info:i, cost:costNow(), folders:F, addJakji:$('f_jakji').checked, jakjiUrl, jakjiThumb });
   const sheetUrl='https://docs.google.com/spreadsheets/d/1olJ4HFFMF308F1jATmD-jBxpOXYjUHnaNcui4AaNfTA/edit#gid=2098756701&range=A'+R.row;
   $('links').innerHTML=`<a href="${F.productUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${sheetUrl}" target="_blank">📊 샘플시트 ${R.row}행</a><a href="${R.txtUrl}" target="_blank">📝 상품정보.txt</a>`+(jakjiUrl?`<a href="${jakjiUrl}" target="_blank">🧾 작업지시서</a>`:'')+(R.jakjiRow?`<div class="muted">작지 시트 ${R.jakjiRow}행 추가됨</div>`:'')+`<div class="muted">판매가 ${won(R.price.price)}원 · ${R.price.formula}</div>`
     +`<div class="btns"><button class="pri" onclick="newProduct()">새 상품 등록</button></div>`;
