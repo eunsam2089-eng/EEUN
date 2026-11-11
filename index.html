@@ -56,6 +56,8 @@
   .cutrow { display:grid; grid-template-columns:auto 1fr 1fr; gap:10px; align-items:start; }
   .cutrow.three { grid-template-columns:auto 1fr 1fr 1fr; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .bar2 { display:grid; grid-template-columns:72px 1fr 44px; gap:8px; align-items:center; margin-top:10px; font-size:13px; color:var(--sub); }
+  .bar2 b { font-weight:500; color:var(--ink); text-align:right; }
   .chip { display:inline-flex; align-items:center; gap:6px; border-color:#ccc; }
   .chip.on { border-color:#111; box-shadow:inset 0 0 0 1px #111; }
   .chip b { background:#111; color:#fff; border-radius:9px; padding:0 6px; font-size:11px; }
@@ -235,10 +237,12 @@
       <label>넣을 컬러 (누른 순서대로 배치)</label>
       <div id="bnrColors" class="chips"></div>
       <div class="row3">
-        <div><label>배치</label><select id="bnrMode"><option value="each">컬러별 한 장씩</option><option value="row">한 장에 나란히</option></select></div>
+        <div><label>배치</label><select id="bnrMode"><option value="each">컬러별 한 장씩</option><option value="stack">겹쳐서 한 장</option><option value="row">나란히 한 장</option></select></div>
         <div><label>비율</label><select id="bnrRatio"><option value="34">세로 3:4 (1200×1600)</option><option value="11">정사각 (1200×1200)</option></select></div>
         <div><label>앞면 컷</label><select id="bnrView"><option value="side">사선 3/4</option><option value="front">정면</option></select></div>
       </div>
+      <div class="bar2"><span>여백</span><input type="range" id="bnrMargin" min="6" max="26" step="1"><b id="bnrMarginV"></b></div>
+      <div class="bar2" id="bnrStepBox"><span>겹침 간격</span><input type="range" id="bnrStep" min="20" max="75" step="1"><b id="bnrStepV"></b></div>
       <label>배경색</label>
       <div class="chips" id="bnrBg"><button class="sm chip" data-bg="#FFFFFF"><span class="dot" style="background:#FFFFFF;border:1px solid #ccc"></span>화이트</button><button class="sm chip" data-bg="#000000"><span class="dot" style="background:#000"></span>블랙</button><button class="sm chip" data-bg="#9A9592"><span class="dot" style="background:#9A9592"></span>베이지</button><label class="sm chip" style="border:1px solid #ccc;border-radius:8px;padding:5px 10px;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="color" id="bnrBgPick" value="#9A9592" style="width:22px;height:22px;padding:0;border:0;background:none">직접</label></div>
       <div class="chk"><input type="checkbox" id="bnrBack"><span>뒷면 배너도 (뒷면 컷 없으면 생성 · 크레딧 사용)</span></div>
@@ -542,7 +546,7 @@ async function apiFromDataUrl(dataUrl){
   cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return { mime:'image/jpeg', b64: cv.toDataURL('image/jpeg',.85).split(',')[1] };
 }
 function resetWork(){
-  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF'}; $('withBack').checked=false;
+  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false;
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
   ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
 }
@@ -1183,8 +1187,9 @@ async function renderJakji(){
 }
 
 /* ───────────── 배너 (제품컷으로 · GPT 크레딧 안 씀) ───────────── */
-S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF'};
-const BN_MARGIN={x:0.08, y:0.11}; // 기존 무로고 배너 기준: 좌우 8% · 위아래 11%
+S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42};
+/** 모든 배너 공통 여백: 가로폭 기준 같은 비율을 위·아래·좌·우에 똑같이 (1컬러든 3컬러든 같은 상자 안에) */
+function bnBox(){ const W=1200, H=S.bnr.ratio==='11'?1200:1600, m=Math.round(W*(S.bnr.margin||0.14)); return {W,H,m,bw:W-m*2,bh:H-m*2}; }
 function bnrColors(){ const n=((S.info&&S.info.sale_colors)||[]).length; if(!Array.isArray(S.bnr.colors)) S.bnr.colors=[...Array(n).keys()]; S.bnr.colors=S.bnr.colors.filter(ci=>ci<n); return S.bnr.colors; }
 function drawBannerUI(){
   if(!S.info) return; const box=$('bnrColors'); box.innerHTML='';
@@ -1195,6 +1200,8 @@ function drawBannerUI(){
     b.onclick=()=>{ const s=bnrColors(), j=s.indexOf(ci); if(j>=0) s.splice(j,1); else s.push(ci); drawBannerUI(); saveDraft(); };
     box.appendChild(b);
   });
+  $('bnrMargin').value=Math.round((S.bnr.margin||0.14)*100); $('bnrMarginV').textContent=$('bnrMargin').value+'%';
+  $('bnrStep').value=Math.round((S.bnr.step||0.42)*100); $('bnrStepV').textContent=$('bnrStep').value+'%'; show('bnrStepBox', S.bnr.mode==='stack');
   $('bnrMode').value=S.bnr.mode; $('bnrRatio').value=S.bnr.ratio; $('bnrView').value=S.bnr.view; $('bnrBack').checked=!!S.bnr.back;
   const bg=(S.bnr.bg||'#FFFFFF').toUpperCase(); let preset=false;
   document.querySelectorAll('#bnrBg [data-bg]').forEach(b=>{ const on=b.dataset.bg===bg; preset=preset||on; b.classList.toggle('on',on); });
@@ -1205,27 +1212,36 @@ function bgTag(){ const bg=(S.bnr.bg||'#FFFFFF').toUpperCase(); return bg in BG_
 async function setBannerBg(bg){ S.bnr.bg=bg.toUpperCase(); drawBannerUI(); if((S.out.banners||[]).length) await makeBanners(false); saveDraft(); }
 document.querySelectorAll('#bnrBg [data-bg]').forEach(b=>b.onclick=()=>setBannerBg(b.dataset.bg));
 $('bnrBgPick').oninput=()=>{ clearTimeout(window._bgT); window._bgT=setTimeout(()=>setBannerBg($('bnrBgPick').value),250); };
-['bnrMode','bnrRatio','bnrView'].forEach(id=>$(id).onchange=()=>{ S.bnr.mode=$('bnrMode').value; S.bnr.ratio=$('bnrRatio').value; S.bnr.view=$('bnrView').value; saveDraft(); });
+const rebanner=()=>{ clearTimeout(window._bnT); window._bnT=setTimeout(async()=>{ if((S.out.banners||[]).length) await makeBanners(false); saveDraft(); },200); };
+['bnrMode','bnrRatio','bnrView'].forEach(id=>$(id).onchange=()=>{ S.bnr.mode=$('bnrMode').value; S.bnr.ratio=$('bnrRatio').value; S.bnr.view=$('bnrView').value; show('bnrStepBox', S.bnr.mode==='stack'); rebanner(); });
+$('bnrMargin').oninput=()=>{ S.bnr.margin=Number($('bnrMargin').value)/100; $('bnrMarginV').textContent=$('bnrMargin').value+'%'; rebanner(); };
+$('bnrStep').oninput=()=>{ S.bnr.step=Number($('bnrStep').value)/100; $('bnrStepV').textContent=$('bnrStep').value+'%'; rebanner(); };
 $('bnrBack').onchange=()=>{ S.bnr.back=$('bnrBack').checked; if(S.bnr.back){ $('withBack').checked=true; drawCuts(); } saveDraft(); };
 /** 컬러들을 같은 배율로 흰 배경 가운데에 (여백 비율 고정) */
+function bnCanvas(){ const B=bnBox(), cv=document.createElement('canvas'); cv.width=B.W; cv.height=B.H; const g=cv.getContext('2d'); g.fillStyle=S.bnr.bg||'#FFFFFF'; g.fillRect(0,0,B.W,B.H); g.imageSmoothingQuality='high'; return {B,cv,g}; }
+/** 나란히: 같은 배율, 사이 간격 고정, 묶음 전체를 공통 상자에 */
 function renderBannerImg(items){
-  const W=1200, H=S.bnr.ratio==='11'?1200:1600, cv=document.createElement('canvas'); cv.width=W; cv.height=H;
-  const g=cv.getContext('2d'); g.fillStyle=S.bnr.bg||'#FFFFFF'; g.fillRect(0,0,W,H);
-  const bx=W*BN_MARGIN.x, by=H*BN_MARGIN.y, bw=W-bx*2, bh=H-by*2, gap=W*0.025;
+  const {B,cv,g}=bnCanvas(), gap=B.W*0.02;
   const bb=items.map(im=>alphaBBox(im)), sumW=bb.reduce((a,b)=>a+b.w,0), maxH=Math.max(...bb.map(b=>b.h));
-  const s=Math.min((bw-gap*(items.length-1))/sumW, bh/maxH);
-  let x=(W-(sumW*s+gap*(items.length-1)))/2;
-  g.imageSmoothingQuality='high';
-  items.forEach((im,k)=>{ const b=bb[k], w=b.w*s, h=b.h*s; g.drawImage(im, b.x,b.y,b.w,b.h, x, (H-h)/2, w, h); x+=w+gap; });
+  const s=Math.min((B.bw-gap*(items.length-1))/sumW, B.bh/maxH);
+  let x=(B.W-(sumW*s+gap*(items.length-1)))/2; const top=(B.H-maxH*s)/2;
+  items.forEach((im,k)=>{ const b=bb[k], w=b.w*s, h=b.h*s; g.drawImage(im, b.x,b.y,b.w,b.h, x, top+(maxH*s-h)/2, w, h); x+=w+gap; });
   return cv.toDataURL('image/jpeg',0.93);
 }
-/** 같은 배너 안의 컬러끼리 크기 통일: 모든 컬러가 들어가는 공통 배율로 한 장씩 */
+/** 겹쳐서: 첫 컬러가 맨 앞(왼쪽), 다음 컬러가 뒤로 오른쪽에 겹침. 묶음 전체를 공통 상자에 크게 */
+function renderStack(items){
+  const {B,cv,g}=bnCanvas(), n=items.length, st=S.bnr.step||0.42;
+  const bb=items.map(im=>alphaBBox(im)), wM=Math.max(...bb.map(b=>b.w)), hM=Math.max(...bb.map(b=>b.h));
+  const s=Math.min(B.bw/(wM*(1+(n-1)*st)), B.bh/hM), gw=wM*s*(1+(n-1)*st), x0=(B.W-gw)/2, top=(B.H-hM*s)/2;
+  for(let k=n-1;k>=0;k--){ const b=bb[k], w=b.w*s, h=b.h*s, x=x0+k*wM*s*st+(wM*s-w)/2;
+    g.save(); if(k<n-1){ g.shadowColor='rgba(0,0,0,.16)'; g.shadowBlur=26; g.shadowOffsetX=10; }
+    g.drawImage(items[k], b.x,b.y,b.w,b.h, x, top+(hM*s-h)/2, w, h); g.restore(); }
+  return cv.toDataURL('image/jpeg',0.93);
+}
+/** 컬러별 한 장씩: 공통 상자 + 컬러끼리 같은 배율 */
 function renderEach(items){
-  const W=1200, H=S.bnr.ratio==='11'?1200:1600, bw=W*(1-BN_MARGIN.x*2), bh=H*(1-BN_MARGIN.y*2);
-  const bb=items.map(im=>alphaBBox(im)), s=Math.min(...bb.map(b=>Math.min(bw/b.w, bh/b.h)));
-  return items.map((im,k)=>{ const b=bb[k], cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
-    g.fillStyle=S.bnr.bg||'#FFFFFF'; g.fillRect(0,0,W,H); g.imageSmoothingQuality='high'; const w=b.w*s, h=b.h*s; g.drawImage(im,b.x,b.y,b.w,b.h,(W-w)/2,(H-h)/2,w,h);
-    return cv.toDataURL('image/jpeg',0.93); });
+  const B=bnBox(), bb=items.map(im=>alphaBBox(im)), s=Math.min(...bb.map(b=>Math.min(B.bw/b.w, B.bh/b.h)));
+  return items.map((im,k)=>{ const {cv,g}=bnCanvas(), b=bb[k], w=b.w*s, h=b.h*s; g.drawImage(im,b.x,b.y,b.w,b.h,(B.W-w)/2,(B.H-h)/2,w,h); return cv.toDataURL('image/jpeg',0.93); });
 }
 async function makeBanners(generateMissing){
   if(!S.info) return; const cols=bnrColors(); S.out.banners=[];
@@ -1242,7 +1258,9 @@ async function makeBanners(generateMissing){
     const list=cols.map(ci=>({ci, im:(S.cuts[ci]||{})[v]&&composeCut(S.cuts[ci][v].img, v)})).filter(x=>x.im);
     if(!list.length) continue;
     const tag=v==='back'?'뒷면':'';
-    if(S.bnr.mode==='row') S.out.banners.push({name:`배너${tag?'_'+tag:''}_${list.map(x=>S.info.sale_colors[x.ci].name).join('·')}${bgTag()}`, url:renderBannerImg(list.map(x=>x.im))});
+    const names=list.map(x=>S.info.sale_colors[x.ci].name).join('·');
+    if(S.bnr.mode==='stack' && list.length>1) S.out.banners.push({name:`배너${tag?'_'+tag:''}_겹침_${names}${bgTag()}`, url:renderStack(list.map(x=>x.im))});
+    else if(S.bnr.mode==='row' && list.length>1) S.out.banners.push({name:`배너${tag?'_'+tag:''}_${names}${bgTag()}`, url:renderBannerImg(list.map(x=>x.im))});
     else renderEach(list.map(x=>x.im)).forEach((url,k)=>S.out.banners.push({name:`배너${tag?'_'+tag:''}_${S.info.sale_colors[list[k].ci].name}${bgTag()}`, url}));
   }
   showBanners();
