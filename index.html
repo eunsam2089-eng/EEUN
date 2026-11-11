@@ -293,7 +293,7 @@
       <label>메인진열</label><div id="c24Mains" class="chips"></div>
       <label>대표이미지 (배너 중 1장)</label><div id="c24Rep" class="c24imgs"></div>
       <label>상세 맨 앞 모델컷 (원본 사진 중 고르기)</label><div id="c24Models" class="c24imgs"></div>
-      <div class="muted" style="font-size:12px">상세 순서: 모델컷 → 사이즈표 → 상세페이지(제품컷·클로즈업). 대표이미지는 상세에 넣지 않아요.</div>
+      <div class="muted" style="font-size:12px">상세 순서: 모델컷 → 상세페이지(제품컷·클로즈업·정보) → 사이즈표. 대표이미지는 상세에 넣지 않아요.</div>
       <div class="chk"><input type="checkbox" id="c24Show" checked><span>바로 진열·판매 (끄면 숨김 상태로 등록 — 테스트할 때)</span></div>
       <div class="btns"><button class="pri" id="c24Go">카페24에 등록</button></div>
       <div class="links" id="c24Links"></div>
@@ -1598,8 +1598,9 @@ async function c24Return(){
   const q=new URLSearchParams(location.search), code=q.get('code'), state=q.get('state');
   if(!code) return c24Status();
   history.replaceState(null,'',location.pathname);
-  if(!state || state!==lsGet('c24_state')){ log('카페24 연결: 확인값이 맞지 않아 중단했어요. "카페24 연결"을 다시 눌러주세요.','err'); return c24Status(); }
-  try{ await run('api_c24Exchange', S.code, code, c24Redirect()); lsSet('c24_state',''); log('카페24 연결 완료','ok'); }
+  if(!state){ log('카페24 연결: 확인값이 없어 중단했어요. "카페24 연결"을 다시 눌러주세요.','err'); return c24Status(); }
+  // 확인값(state)은 서버가 기억했다가 대조 — 폰에서 앱/브라우저가 바뀌어 돌아와도 연결됨
+  try{ await run('api_c24Exchange', S.code, code, c24Redirect(), state); lsSet('c24_state',''); log('카페24 연결 완료','ok'); }
   catch(e){ log('카페24 연결 실패: '+e.message,'err'); }
   await c24Status();
 }
@@ -1699,11 +1700,11 @@ async function c24Upload(){
   if(S.c24 && S.c24.product_no && !confirm(`이 작업은 이미 카페24에 등록했어요 (상품번호 ${S.c24.product_no}).\n새 상품으로 한 번 더 등록할까요?`)) return;
   const split=v=>v.split(',').map(s=>s.trim()).filter(Boolean);
   const options=[['색상',split($('c24Colors').value)],['사이즈',split($('c24Sizes').value)]].filter(o=>o[1].length).map(([n,v])=>({name:n, value:v}));
-  // 상세 이미지: 모델컷 → 사이즈표 → 상세페이지
+  // 상세 이미지: 모델컷 → 상세페이지(DETAIL POINT·정보) → 사이즈표 (사이즈는 맨 아래)
   const parts=[];
   for(const im of S.images.filter(x=>C24.models.has(x.key))) parts.push(...await c24Slices(im.full.dataUrl, 2400));
-  parts.push(...await c24Slices(S.out.size, 2400));
   parts.push(...await c24Slices(S.out.detail, 2400));
+  parts.push(...await c24Slices(S.out.size, 2400));
   log(`카페24 상세 이미지 올리는 중… (${parts.length}장)`);
   const paths=[];
   for(const [k,b64] of parts.entries()){ paths.push(await run('api_c24UploadImage', S.code, b64)); if((k+1)%3===0||k===parts.length-1) log(`상세 이미지 ${k+1}/${parts.length}`); }
