@@ -226,7 +226,7 @@
     <div class="cutrow" style="margin-top:12px"><div class="cn">사이즈표<br>도식화</div><div class="slot lineslot" id="lineSlot"></div></div>
     <div class="chk"><input type="checkbox" id="hq"><span>제품컷 고화질 (크레딧 더 씀 · 기본은 가성비 화질)</span></div>
     <div class="chk"><input type="checkbox" id="withBack"><span>뒷면 컷도 만들기 (뒷면 배너용 · 컬러당 1장 더)</span></div>
-    <div class="chk"><input type="checkbox" id="useCrops" checked><span>디테일 클로즈업 3장 넣기 (탭해서 영역 조정)</span></div>
+    <div class="chk"><input type="checkbox" id="useCrops" checked><span>디테일 클로즈업 2장 넣기 (탭해서 영역 조정)</span></div>
     <div class="crops" id="crops"></div>
   </section>
 
@@ -596,7 +596,8 @@ async function restoreDraft(d, id){
       if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; $('hq').checked=!!d.form.hq; $('withBack').checked=!!d.form.withBack; show('jakjiBox',!!d.form.jakji); updatePrice(); }
       if(d.bnr) S.bnr={...S.bnr, ...d.bnr};
       if(S.info.made){ drawLabelLib(); drawLabelSel(); }
-      $('useCrops').checked=d.useCrops!==false;
+      $('useCrops').checked=true;
+      if(!S.crops.length) S.crops=defaultCrops(S.info);
       show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
       if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); if(d.bnrMade) await makeBanners(false); showOut(); }
       if(S.saved) $('links').innerHTML=`<a href="${S.saved.folderUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${S.saved.sheetUrl}" target="_blank">📊 샘플시트 ${S.saved.row}행</a><div class="muted">이미 저장된 작업이에요. 고쳐서 "드라이브·시트 저장"을 다시 누르면 같은 폴더·행이 갱신돼요.</div>`;
@@ -617,7 +618,7 @@ async function analyze(){
   const info = await run('api_analyze', S.code, text, S.images.map(x=>x.api));
   normalizeInfo(info);
   S.info = info; S.cuts = {}; S.out = {}; S.line = null;
-  S.crops = defaultCrops(info);
+  S.crops = defaultCrops(info); $('useCrops').checked=true;
   fillForm(); show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
   log('분석 완료: '+info.product_name, 'ok');
   saveDraft(true);
@@ -790,6 +791,15 @@ async function ensureAlpha(r){
   g.putImageData(d,0,0);
   const url=cv.toDataURL('image/png'); return {img:await loadImg(url), mime:'image/png', b64:url.split(',')[1]};
 }
+/** AI용 설명에서 색 이름을 빼서, 컬러별 제품컷이 설명 속 색(예: ivory)에 끌려가지 않게 */
+function neutralHint(h){
+  const C='off-white|ivory|cream|white|black|beige|gr[ae]y|charcoal|navy|brown|camel|khaki|tan|pink|red|blue|green|mint|yellow|purple|lavender|burgundy|wine|oatmeal|ecru|taupe|mocha|olive|sky ?blue|melange';
+  const M='(?:(?:light|dark|deep|pale|soft|warm|cool)\\s+)?';
+  return String(h||'')
+    .replace(new RegExp(`\\s*\\bin\\s+(?:an?\\s+)?${M}(?:${C})(?:\\s+colou?r(?:ed)?)?\\b`,'gi'),'')
+    .replace(new RegExp(`\\b${M}(?:${C})(?:[- ]colou?r(?:ed)?)?\\s+`,'gi'),'')
+    .replace(/\s+([,.])/g,'$1').replace(/\s{2,}/g,' ').trim();
+}
 async function genCut(ci, view, resumeJob){
   readForm();
   const c=S.info.sale_colors[ci]; if(!c) return;
@@ -798,7 +808,8 @@ async function genCut(ci, view, resumeJob){
   if(!resumeJob) log(`${nm} 제품컷 생성 중… (좋은 모델 1~3분)`);
   try{
     const first=ci>0 ? ((S.cuts[0]||{})[view]||{}) : {}; const base=refIndices().slice(0,3).map(i=>S.images[i].api);
-    const req={ view, colorEn:c.en||c.name, hex:c.hex, hint:S.info.ghost_prompt||S.info.product_name, quality: $('hq').checked?'high':'',
+    const col=c.en||c.name;
+    const req={ view, colorEn:col, hex:c.hex, hint:`Garment color: ${col} (${c.hex}). Render the garment in exactly this color, not the color of the reference photos. `+neutralHint(S.info.ghost_prompt||S.info.product_name), quality: $('hq').checked?'high':'',
       refs: first.img ? [jpegOf(first.img,1024,'#fff'), ...base.slice(0,2)] : base, matchFirst: !!first.img };
     const r=await genImage('api_generateCut', req, nm, job=>{ S.cuts[ci][view]={loading:true, job}; saveDraft(true); }, resumeJob);
     S.cuts[ci][view]=await ensureAlpha(r);
@@ -982,11 +993,11 @@ function defaultCrops(info){
     if(im && b.length===4 && b.every(v=>typeof v==='number')) out.push({ imageIndex:d.image_index, label:d.label||'디테일', rect: fitAspect(im, ...b.map(v=>Math.min(Math.max(v,0),1))) });
   });
   const refs=(info.product_ref_indices||[]).filter(i=>S.images[i]);
-  while(out.length<3 && S.images.length){
-    const i=refs[out.length % Math.max(refs.length,1)] ?? 0; const presets=[[.2,.05,.8,.45],[.25,.35,.75,.75],[.2,.55,.8,.95]];
+  while(out.length<2 && S.images.length){
+    const i=refs[out.length % Math.max(refs.length,1)] ?? 0; const presets=[[.2,.05,.8,.45],[.2,.5,.8,.9]];
     out.push({ imageIndex:i, label:'디테일', rect: fitAspect(S.images[i], ...presets[out.length]) });
   }
-  return out.slice(0,3);
+  return out.slice(0,2);
 }
 function cropCanvas(c){
   const im=S.images[c.imageIndex].full.img;
