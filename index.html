@@ -240,8 +240,10 @@
         <div><label>앞면 컷</label><select id="bnrView"><option value="side">사선 3/4</option><option value="front">정면</option></select></div>
       </div>
       <div class="chk"><input type="checkbox" id="bnrBack"><span>뒷면 배너도 (뒷면 컷 없으면 생성 · 크레딧 사용)</span></div>
-      <div class="btns"><button id="btnBanner">배너 만들기</button></div>
+      <div class="btns"><button id="btnBanner">배너 만들기</button><button id="btnBannerSave">배너만 드라이브 저장</button></div>
+      <div class="muted" style="font-size:12px">배너는 필요할 때만 만들어요. 만든 배너는 "드라이브·시트 저장" 때도 같이 올라가요.</div>
       <div id="bnrOut" class="out"></div>
+      <div class="links" id="bnrLinks"></div>
     </div>
     <div class="btns"><button class="pri" id="btnSave">드라이브·시트 저장</button><button id="btnRerender">다시 만들기</button></div>
     <div class="links" id="links"></div>
@@ -415,7 +417,7 @@ function snapshot(){
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
-    cuts, line, crops:S.crops, useCrops:$('useCrops').checked, rendered:!!(S.out&&S.out.detail), saved:S.saved,
+    cuts, line, crops:S.crops, useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, rendered:!!(S.out&&S.out.detail), saved:S.saved,
     labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
   s.name=(s.info&&s.info.product_name)||(s.txt||'').split('\n')[0].slice(0,28)||'이름 없는 작업';
   s.status=statusOf(s); s.photos=s.images.length; s.thumb=thumbOf();
@@ -538,7 +540,7 @@ async function apiFromDataUrl(dataUrl){
   cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return { mime:'image/jpeg', b64: cv.toDataURL('image/jpeg',.85).split(',')[1] };
 }
 function resetWork(){
-  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; S.labels=[]; S.line=null; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false}; $('withBack').checked=false;
+  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false}; $('withBack').checked=false;
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
   ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
 }
@@ -576,7 +578,7 @@ async function restoreDraft(d, id){
       if(S.info.made){ drawLabelLib(); drawLabelSel(); }
       $('useCrops').checked=d.useCrops!==false;
       show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
-      if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); await makeBanners(false); showOut(); }
+      if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); if(d.bnrMade) await makeBanners(false); showOut(); }
       if(S.saved) $('links').innerHTML=`<a href="${S.saved.folderUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${S.saved.sheetUrl}" target="_blank">📊 샘플시트 ${S.saved.row}행</a><div class="muted">이미 저장된 작업이에요. 고쳐서 "드라이브·시트 저장"을 다시 누르면 같은 폴더·행이 갱신돼요.</div>`;
     }
     log('작업을 불러왔어요: '+((S.info&&S.info.product_name)||'입력 중'),'ok');
@@ -1238,9 +1240,22 @@ async function makeBanners(generateMissing){
 function showBanners(){
   const box=$('bnrOut'); box.innerHTML=''; const fn=safeName((S.info&&S.info.product_name)||'배너');
   (S.out.banners||[]).forEach(b=>{ const d=document.createElement('div'); d.innerHTML=`<div class="pv" style="max-height:none"><img src="${b.url}"></div><a class="muted" download="${fn}_${safeName(b.name)}.jpg" href="${b.url}">${esc(b.name)} 다운로드</a>`; box.appendChild(d); });
-  if(!(S.out.banners||[]).length) box.innerHTML='<p class="muted">넣을 컬러를 고르고 "배너 만들기"를 눌러주세요.</p>';
+  if(!(S.out.banners||[]).length) box.innerHTML='<p class="muted">배너가 필요하면 넣을 컬러를 고르고 "배너 만들기"를 눌러주세요.</p>';
 }
 $('btnBanner').onclick=()=>guard(async()=>{ readForm(); await makeBanners(true); saveDraft(true); log('배너 완료 · '+(S.out.banners||[]).length+'장','ok'); });
+/** 배너만 제품 폴더에 저장 (상세페이지·시트는 건드리지 않음) */
+$('btnBannerSave').onclick=()=>guard(async()=>{
+  readForm();
+  if(!(S.out.banners||[]).length){ await makeBanners(true); }
+  const list=S.out.banners||[]; if(!list.length) throw new Error('저장할 배너가 없어요. 넣을 컬러를 골라주세요.');
+  const fn=safeName(S.info.product_name), b64=u=>u.split(',')[1];
+  log('배너 저장 중… (앱을 나가지 마세요)');
+  const F=await run('api_prepareFolders', S.code, S.info.product_name);
+  await pool(list.map(bn=>()=>run('api_uploadFile', S.code, F.productId, `${fn}_${safeName(bn.name)}.jpg`, 'image/jpeg', b64(bn.url))), 3, '배너 업로드가 일부 실패했어요 — 다시 눌러주세요 (올라간 건 교체만 돼요)');
+  log(`배너 ${list.length}장 저장 완료 · ${F.weekName}/${S.info.product_name}`,'ok');
+  $('bnrLinks').innerHTML=`<a href="${F.productUrl}" target="_blank">📁 배너 저장된 폴더 열기</a>`;
+  saveDraft(true);
+});
 
 /* ───────────── 작지 시트용 사진 (제품 + 라벨 위치·라벨) ───────────── */
 async function renderJakjiCard(){
@@ -1382,7 +1397,8 @@ async function renderSize(){
 async function renderAll(){
   readForm(); log('상세페이지·사이즈표 만드는 중…');
   if(S.line&&S.line.img){ const have=(S.line.lines||[]).map(l=>l.label); if(msLabels().some(l=>!have.includes(l))) await measureLine(); }
-  S.out.detail=await renderDetail(); S.out.size=await renderSize(); await makeBanners(false);
+  const hadBanners=(S.out.banners||[]).length>0;
+  S.out.detail=await renderDetail(); S.out.size=await renderSize(); if(hadBanners) await makeBanners(false);
   showOut(); log('결과물 완료','ok'); saveDraft(true);
 }
 function showOut(){
