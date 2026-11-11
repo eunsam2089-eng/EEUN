@@ -96,7 +96,11 @@
   .tag3 { font-size:11px; background:#fde8d7; color:#9a4a12; border-radius:9px; padding:1px 7px; vertical-align:middle; }
   body.wide #side { display:block !important; box-shadow:none; border-left:1px solid #e5e5e5; padding-bottom:30vh; }
   body.wide #sideBg, body.wide #sideClose { display:none !important; }
-  body.wide .wrap { margin-right:440px; }
+  body.wide #side { width:420px; }
+  body.wide { padding-right:421px; }
+  body.wide .wrap { max-width:880px; }
+  body.wide #log { right:421px; }
+  #lineM, #labM, #cropM { z-index:50; user-select:none; -webkit-user-select:none; }
   body.wide #btnSide { display:none !important; }
   .tag2 { font-size:11px; background:#111; color:#fff; border-radius:9px; padding:1px 7px; vertical-align:middle; }
   .lablib { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px; }
@@ -532,7 +536,17 @@ function closeSide(){ if(document.body.classList.contains('wide')) return; show(
 $('btnSide').onclick=openSide; $('sideClose').onclick=closeSide; $('sideBg').onclick=closeSide;
 $('sideRefresh').onclick=()=>loadWorks();
 $('sideNew').onclick=()=>guard(async()=>{ closeSide(); await newProduct(); });
-if(window.matchMedia('(min-width:1100px)').matches) document.body.classList.add('wide');
+(function(){
+  const mq=window.matchMedia('(min-width:1100px)');
+  const apply=()=>{
+    const was=document.body.classList.contains('wide');
+    document.body.classList.toggle('wide', mq.matches);
+    if(was && !mq.matches){ show('side',false); show('sideBg',false); }
+    if(!was && mq.matches && document.readyState==='complete') loadWorks();
+  };
+  apply();
+  mq.addEventListener ? mq.addEventListener('change',apply) : mq.addListener(apply);
+})();
 
 async function migrateOldDraft(){
   try{ const d=await DB.get('draft'); if(!d) return; const id=d.t.toString(36);
