@@ -270,6 +270,10 @@
   <section id="secUp" class="hidden">
     <h2><span class="n">5</span>카페24 업로드</h2>
     <div class="muted" id="c24St">카페24 연결 확인 전</div>
+    <div id="c24KeyBox" class="hidden">
+      <label>처음 한 번: 카페24 Client Secret 붙여넣기 — <a href="https://developers.cafe24.com/admin/apps/front/develop?client_id=qBR05aIUDVIkRnrhQNahnB" target="_blank">개발자센터 열기</a> → 아래쪽 Client Secret Key "보기" → 복사</label>
+      <div style="display:flex;gap:8px"><input type="password" id="c24Secret" autocomplete="off" placeholder="Client Secret Key" style="flex:1"><button id="c24SaveKey">저장</button></div>
+    </div>
     <div class="btns"><button id="c24Connect">카페24 연결</button><button id="c24Reload">분류 다시 불러오기</button></div>
     <div id="c24Form" class="hidden">
       <label>상품명</label><input type="text" id="c24Name">
@@ -398,7 +402,7 @@ $('btnLogin').onclick = async ()=>{
     $('status').innerHTML = `${S.init.week.name}<br>환율 ${S.init.fx.rate}원/위안 · ${S.init.models.text} · ${S.init.models.image}`;
     show('secLogin', false); show('secInput'); show('btnSide');
     log('연결됨', 'ok');
-    await c24Return();
+    show('secUp'); await c24Return();
     offerDraft();
   }catch(e){ log('연결 실패: '+e.message,'err'); }
   $('btnLogin').disabled = false;
@@ -602,8 +606,8 @@ async function apiFromDataUrl(dataUrl){
 function resetWork(){
   S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false;
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
-  S.c24=null; C24.filled=null; $('c24Links').innerHTML='';
-  ['secReview','secCuts','secOut','secUp'].forEach(id=>show(id,false));
+  S.c24=null; C24.filled=null; $('c24Links').innerHTML=''; show('c24Form',false);
+  ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
 }
 async function mapPool(arr, n, fn){ const out=new Array(arr.length); let k=0; await Promise.all(Array.from({length:Math.min(n,arr.length)},async()=>{ while(k<arr.length){ const i=k++; out[i]=await fn(arr[i],i); } })); return out; }
 async function restoreDraft(d, id){
@@ -1603,10 +1607,11 @@ async function c24Status(){
   try{ C24.st=await run('api_c24Status', S.code); }catch(e){ C24.st={error:e.message}; }
   const s=C24.st;
   $('c24St').textContent = s.error ? '카페24 확인 오류: '+s.error
-    : !s.clientSet ? '서버에 카페24 앱 키가 아직 없어요 (스크립트 속성 CAFE24_CLIENT_ID · CAFE24_CLIENT_SECRET).'
+    : !s.clientSet ? '카페24 앱 Secret이 아직 없어요 — 아래 칸에 한 번만 붙여넣어 주세요.'
     : s.connected ? `카페24 연결됨 · ${s.mall} · 재연결 필요일 ${s.refreshUntil||'-'}` : '카페24 연결 안 됨 — "카페24 연결"을 눌러 쇼핑몰 관리자로 허용해주세요.';
   $('c24Connect').textContent = s.connected ? '카페24 다시 연결' : '카페24 연결';
-  show('c24Form', !!s.connected);
+  show('c24KeyBox', !s.error && !s.clientSet); show('c24Connect', !s.error && !!s.clientSet);
+  show('c24Form', !!s.connected && !!S.info);
   if(s.connected && !C24.meta) await c24LoadMeta().catch(e=>log('카페24 분류 불러오기 실패: '+e.message,'err'));
 }
 $('c24Connect').onclick=()=>guard(async()=>{
@@ -1623,6 +1628,11 @@ async function c24LoadMeta(){
   C24.mains=new Set(lastM ? lastM.split(',').filter(Boolean) : C24.meta.mains.filter(m=>/new/i.test(m.name)).map(m=>String(m.no)));
   drawC24Cats(); drawC24Mains();
 }
+$('c24SaveKey').onclick=()=>guard(async()=>{
+  const v=$('c24Secret').value.trim(); if(!v) throw new Error('Client Secret을 붙여넣어 주세요.');
+  await run('api_c24SetSecret', S.code, v); $('c24Secret').value='';
+  log('카페24 Secret 저장됨 — 이제 "카페24 연결"을 눌러주세요','ok'); await c24Status();
+});
 $('c24Reload').onclick=()=>guard(async()=>{ C24.meta=null; await c24Status(); });
 function drawC24Cats(){
   const box=$('c24Cats'); if(!C24.meta){ box.innerHTML=''; return; }
@@ -1665,7 +1675,7 @@ function c24Fill(){
     $('c24Links').innerHTML = S.c24 ? c24LinksHtml(S.c24.product_no) : '';
   }
   drawC24Imgs();
-  if(!C24.st) c24Status();
+  if(!C24.st) c24Status(); else show('c24Form', !!C24.st.connected);
 }
 function c24LinksHtml(no){
   return `<a href="${C24_SHOP}/disp/admin/shop1/product/productmodify?product_no=${no}" target="_blank">🛠 카페24 관리자에서 열기 (${no})</a><a href="${C24_FRONT}/product/detail.html?product_no=${no}" target="_blank">🛍 쇼핑몰 상품 페이지</a><a href="https://mp.cafe24.com/mp/product/front/detail?product_no=${no}" target="_blank">🔁 마켓플러스 (에이블리·큐텐 전송)</a>`;
