@@ -292,7 +292,10 @@
       <div id="c24Cats" class="c24list"></div>
       <label>메인진열</label><div id="c24Mains" class="chips"></div>
       <label>대표이미지 (배너 중 1장)</label><div id="c24Rep" class="c24imgs"></div>
-      <label>상세 맨 앞 모델컷 (원본 사진 중 고르기)</label><div id="c24Models" class="c24imgs"></div>
+      <label>모델컷 (누른 순서대로 배치 — 1번: 로고·문구 들어간 첫 장, 2·3번: 나란히, 그다음 한 장씩)</label>
+      <div class="btns" style="margin:4px 0 8px"><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 10px;font-size:13px;background:#fff;cursor:pointer">＋ 모델컷 추가 (보정한 사진)<input type="file" id="c24AddModel" accept="image/*" multiple style="display:none"></label><button class="sm" id="c24ModelClear">선택 모두 해제</button><button class="sm" id="c24ModelBuild">모델 섹션 미리보기</button></div>
+      <div id="c24Models" class="c24imgs"></div>
+      <div class="pv hidden" id="c24ModelPv" style="margin-top:10px"><img id="c24ModelImg" style="width:100%;display:block"></div>
       <div class="muted" style="font-size:12px">상세 순서: 모델컷 → 상세페이지(제품컷·클로즈업·정보) → 사이즈표. 대표이미지는 상세에 넣지 않아요.</div>
       <div class="chk"><input type="checkbox" id="c24Show" checked><span>바로 진열·판매 (끄면 숨김 상태로 등록 — 테스트할 때)</span></div>
       <div class="btns"><button class="pri" id="c24Go">카페24에 등록</button></div>
@@ -467,7 +470,7 @@ function snapshot(){
   const cuts={}; Object.entries(S.cuts||{}).forEach(([ci,o])=>{ cuts[ci]={}; VIEWS.forEach(v=>{ const c=one(o&&o[v]); if(c) cuts[ci][v]=c; }); });
   const line = S.line&&(S.line.b64||S.line.fid)&&!S.line.loading ? {mime:S.line.mime, fid:S.line.fid||null, b64:S.line.fid?null:S.line.b64, lines:S.line.lines||[]} : (S.line&&S.line.job?{job:S.line.job}:null);
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
-    images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h})),
+    images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h, model:!!im.model})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
     cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, rendered:!!(S.out&&S.out.detail), saved:S.saved, c24:S.c24||null,
     labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
@@ -630,7 +633,7 @@ async function restoreDraft(d, id){
     const got=await mapPool(jobs, 4, f=>f());
     S.cuts={};
     for(const g of got){
-      if(g.k==='img'){ S.images.push({name:g.x.name, key:g.x.key||newId(), fid:g.x.fid||null, full:{dataUrl:g.url, w:g.x.w, h:g.x.h, img:await loadImg(g.url)}, api: await apiFromDataUrl(g.url)}); }
+      if(g.k==='img'){ S.images.push({name:g.x.name, key:g.x.key||newId(), fid:g.x.fid||null, model:!!g.x.model, full:{dataUrl:g.url, w:g.x.w, h:g.x.h, img:await loadImg(g.url)}, api: await apiFromDataUrl(g.url)}); }
       else if(g.k==='cut'){ S.cuts[g.ci]=S.cuts[g.ci]||{}; S.cuts[g.ci][g.v]={mime:g.c.mime, fid:g.c.fid||null, b64:g.url.split(',')[1], img:await loadImg(g.url)}; }
       else if(g.k==='crop'){ crops0[g.idx].gen={mime:g.c.mime, fid:g.c.fid||null, b64:g.url.split(',')[1], img:await loadImg(g.url)}; }
       else if(g.k==='line'){ S.line={mime:d.line.mime||'image/png', fid:d.line.fid||null, b64:g.url.split(',')[1], lines:d.line.lines||[], img:await loadImg(g.url)}; }
@@ -1655,8 +1658,43 @@ function drawC24Imgs(){
   $('c24Rep').innerHTML = bns.length ? '' : '<div class="muted" style="grid-column:1/-1">배너가 없어요 — 등록할 때 자동으로 만들어요 (위 "배너 만들기"로 미리 골라도 돼요)</div>';
   bns.forEach((b,k)=>{ const d=document.createElement('div'); d.className='it'+(k===C24.rep?' on':''); d.innerHTML=`<img src="${b.url}">${k===C24.rep?'<span class="ck">대표</span>':''}`; d.onclick=()=>{ C24.rep=k; drawC24Imgs(); }; $('c24Rep').appendChild(d); });
   $('c24Models').innerHTML='';
-  S.images.forEach((im,k)=>{ const on=C24.models.has(im.key); const d=document.createElement('div'); d.className='it'+(on?' on':''); d.innerHTML=`<img src="${im.full.dataUrl}">${on?`<span class="ck">${[...S.images.filter(x=>C24.models.has(x.key))].indexOf(im)+1}</span>`:''}`;
-    d.onclick=()=>{ on?C24.models.delete(im.key):C24.models.add(im.key); drawC24Imgs(); }; $('c24Models').appendChild(d); });
+  S.images.forEach((im,k)=>{ const on=C24.models.has(im.key); const d=document.createElement('div'); d.className='it'+(on?' on':''); d.innerHTML=`<img src="${im.full.dataUrl}">${on?`<span class="ck">${[...C24.models].indexOf(im.key)+1}</span>`:''}`;
+    d.onclick=()=>{ on?C24.models.delete(im.key):C24.models.add(im.key); S.out.models=null; show('c24ModelPv',false); drawC24Imgs(); }; $('c24Models').appendChild(d); });
+}
+$('c24AddModel').onchange=async e=>{
+  for(const f of e.target.files){ try{ const p=await prepImage(f); p.key=newId(); p.model=true; S.images.push(p); C24.models.add(p.key); }catch(err){ log(f.name+' 불러오기 실패','err'); } }
+  e.target.value=''; S.out.models=null; show('c24ModelPv',false); drawThumbsRaw(); drawC24Imgs(); saveDraft();
+};
+$('c24ModelClear').onclick=()=>{ C24.models.clear(); S.out.models=null; show('c24ModelPv',false); drawC24Imgs(); };
+$('c24ModelBuild').onclick=()=>guard(async()=>{ const u=await buildModelSection(); if(!u) throw new Error('모델컷을 먼저 골라주세요 (누른 순서대로 배치돼요).'); });
+/** 이은 상세 모델 섹션 (르딘 상세 양식): 1100px, 첫 장 풀블리드+문구·로고, 2·3번 나란히, 이후 풀/여백 번갈아 */
+async function buildModelSection(){
+  const ims=[...C24.models].map(k=>S.images.find(x=>x.key===k)).filter(Boolean).map(x=>x.full.img);
+  if(!ims.length){ S.out.models=null; show('c24ModelPv',false); return null; }
+  await fontsReady();
+  const W=1100, GAP=70, TOP=60, cap=h=>Math.min(h,1650);
+  const blocks=[]; let k=0;
+  blocks.push({type:'hero', img:ims[k], w:W, h:cap(Math.round(W*ih(ims[k])/iw(ims[k])))}); k++;
+  if(ims.length-k>=2){ const w=(W-12)/2; blocks.push({type:'pair', imgs:[ims[k],ims[k+1]], w, h:Math.round(w*4/3)}); k+=2; }
+  let inset=false;
+  for(;k<ims.length;k++){ const w=inset?W-180:W; blocks.push({type:'one', img:ims[k], x:inset?90:0, w, h:cap(Math.round(w*ih(ims[k])/iw(ims[k])))}); inset=!inset; }
+  const H=TOP+blocks.reduce((s,b)=>s+b.h,0)+GAP*(blocks.length-1)+TOP;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.imageSmoothingQuality='high';
+  const cover=(img,x,y,w,h)=>{ const s=Math.max(w/iw(img),h/ih(img)), sw=w/s, sh=h/s; g.drawImage(img,(iw(img)-sw)/2,(ih(img)-sh)/2,sw,sh,x,y,w,h); };
+  let y=TOP;
+  for(const b of blocks){
+    if(b.type==='hero'){ cover(b.img,0,y,W,b.h);
+      g.fillStyle='rgba(255,255,255,.92)'; g.textBaseline='top';
+      g.font='500 15px Inter, "Noto Sans KR", sans-serif'; g.textAlign='left'; g.fillText('A CONNECTION TO YOUR SHINING TODAY.',28,y+30);
+      g.font='400 58px "Times New Roman", Georgia, serif'; g.textAlign='center'; g.fillText('EEUN',W/2,y+64); g.textAlign='left'; }
+    else if(b.type==='pair'){ cover(b.imgs[0],0,y,b.w,b.h); cover(b.imgs[1],W-b.w,y,b.w,b.h); }
+    else cover(b.img,b.x,y,b.w,b.h);
+    y+=b.h+GAP;
+  }
+  S.out.models=cv.toDataURL('image/jpeg',.9);
+  $('c24ModelImg').src=S.out.models; show('c24ModelPv');
+  return S.out.models;
 }
 /** 결과물이 나오면 업로드 칸을 지금 상품 정보로 채움 (상품이 바뀔 때만) */
 function c24Fill(){
@@ -1672,7 +1710,8 @@ function c24Fill(){
     $('c24SupName').value=(i.supplier&&(i.supplier.url||i.supplier.name))||'';
     $('c24Colors').value=i.sale_colors.map(x=>x.name).filter(Boolean).join(', ');
     $('c24Sizes').value=String(i.sale_size||'FREE').split(/[\/,]/).map(s=>s.trim()).filter(Boolean).join(', ');
-    C24.models=new Set(S.images.map(x=>x.key)); C24.rep=0;
+    C24.models=new Set(S.images.filter(x=>x.model).map(x=>x.key)); C24.rep=0; // 캡처 원본은 기본 제외, 추가한 모델컷만 선택
+    S.out.models=null; show('c24ModelPv',false);
     $('c24Links').innerHTML = S.c24 ? c24LinksHtml(S.c24.product_no) : '';
   }
   drawC24Imgs();
@@ -1702,7 +1741,8 @@ async function c24Upload(){
   const options=[['색상',split($('c24Colors').value)],['사이즈',split($('c24Sizes').value)]].filter(o=>o[1].length).map(([n,v])=>({name:n, value:v}));
   // 상세 이미지: 모델컷 → 상세페이지(DETAIL POINT·정보) → 사이즈표 (사이즈는 맨 아래)
   const parts=[];
-  for(const im of S.images.filter(x=>C24.models.has(x.key))) parts.push(...await c24Slices(im.full.dataUrl, 2400));
+  const ms=S.out.models || await buildModelSection();
+  if(ms) parts.push(...await c24Slices(ms, 2400));
   parts.push(...await c24Slices(S.out.detail, 2400));
   parts.push(...await c24Slices(S.out.size, 2400));
   log(`카페24 상세 이미지 올리는 중… (${parts.length}장)`);
