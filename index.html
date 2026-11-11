@@ -100,6 +100,14 @@
   body.wide { padding-right:421px; }
   body.wide .wrap { max-width:880px; }
   body.wide #log { right:421px; }
+  .c24list { max-height:240px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:6px 10px; margin-top:6px; }
+  .c24list label { display:flex; gap:8px; align-items:center; margin:3px 0; font-size:13px; color:var(--ink); }
+  .c24list input { width:auto; }
+  .c24imgs { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px; }
+  .c24imgs .it { position:relative; border:2px solid #e5e5e5; border-radius:8px; overflow:hidden; cursor:pointer; opacity:.45; }
+  .c24imgs .it.on { border-color:#111; opacity:1; }
+  .c24imgs img { width:100%; aspect-ratio:3/4; object-fit:cover; display:block; background:#f4f4f4; }
+  .c24imgs .ck { position:absolute; top:4px; left:4px; background:#111; color:#fff; border-radius:9px; font-size:11px; padding:0 6px; }
   body #lineM, body #labM, body #cropM { z-index:50; user-select:none; -webkit-user-select:none; }
   body.wide #btnSide { display:none !important; }
   .tag2 { font-size:11px; background:#111; color:#fff; border-radius:9px; padding:1px 7px; vertical-align:middle; }
@@ -258,6 +266,35 @@
     <div class="btns"><button class="pri" id="btnSave">드라이브·시트 저장</button><button id="btnRerender">다시 만들기</button></div>
     <div class="links" id="links"></div>
   </section>
+
+  <section id="secUp" class="hidden">
+    <h2><span class="n">5</span>카페24 업로드</h2>
+    <div class="muted" id="c24St">카페24 연결 확인 전</div>
+    <div class="btns"><button id="c24Connect">카페24 연결</button><button id="c24Reload">분류 다시 불러오기</button></div>
+    <div id="c24Form" class="hidden">
+      <label>상품명</label><input type="text" id="c24Name">
+      <div class="row3">
+        <div><label>판매가</label><input type="number" id="c24Price"></div>
+        <div><label>공급가 (원가)</label><input type="number" id="c24Supply"></div>
+        <div><label>공급사 코드</label><input type="text" id="c24SupCode" placeholder="1688 = S00000TD"></div>
+      </div>
+      <label>공급사 상품명 (발주 링크)</label><input type="text" id="c24SupName">
+      <div class="row">
+        <div><label>옵션 · 색상 (쉼표로 구분)</label><input type="text" id="c24Colors"></div>
+        <div><label>옵션 · 사이즈 (쉼표로 구분)</label><input type="text" id="c24Sizes"></div>
+      </div>
+      <label>분류 (ALL · 카테고리 · NEW 체크 — 지난번 고른 분류가 기본)</label>
+      <input type="text" id="c24CatQ" placeholder="분류 이름으로 찾기">
+      <div id="c24Cats" class="c24list"></div>
+      <label>메인진열</label><div id="c24Mains" class="chips"></div>
+      <label>대표이미지 (배너 중 1장)</label><div id="c24Rep" class="c24imgs"></div>
+      <label>상세 맨 앞 모델컷 (원본 사진 중 고르기)</label><div id="c24Models" class="c24imgs"></div>
+      <div class="muted" style="font-size:12px">상세 순서: 모델컷 → 사이즈표 → 상세페이지(제품컷·클로즈업). 대표이미지는 상세에 넣지 않아요.</div>
+      <div class="chk"><input type="checkbox" id="c24Show" checked><span>바로 진열·판매 (끄면 숨김 상태로 등록 — 테스트할 때)</span></div>
+      <div class="btns"><button class="pri" id="c24Go">카페24에 등록</button></div>
+      <div class="links" id="c24Links"></div>
+    </div>
+  </section>
 </div>
 
 <div id="cropM" class="hidden">
@@ -361,6 +398,7 @@ $('btnLogin').onclick = async ()=>{
     $('status').innerHTML = `${S.init.week.name}<br>환율 ${S.init.fx.rate}원/위안 · ${S.init.models.text} · ${S.init.models.image}`;
     show('secLogin', false); show('secInput'); show('btnSide');
     log('연결됨', 'ok');
+    await c24Return();
     offerDraft();
   }catch(e){ log('연결 실패: '+e.message,'err'); }
   $('btnLogin').disabled = false;
@@ -427,7 +465,7 @@ function snapshot(){
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
-    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, rendered:!!(S.out&&S.out.detail), saved:S.saved,
+    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, rendered:!!(S.out&&S.out.detail), saved:S.saved, c24:S.c24||null,
     labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
   s.name=(s.info&&s.info.product_name)||(s.txt||'').split('\n')[0].slice(0,28)||'이름 없는 작업';
   s.status=statusOf(s); s.photos=s.images.length; s.thumb=thumbOf();
@@ -564,13 +602,14 @@ async function apiFromDataUrl(dataUrl){
 function resetWork(){
   S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false;
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
-  ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
+  S.c24=null; C24.filled=null; $('c24Links').innerHTML='';
+  ['secReview','secCuts','secOut','secUp'].forEach(id=>show(id,false));
 }
 async function mapPool(arr, n, fn){ const out=new Array(arr.length); let k=0; await Promise.all(Array.from({length:Math.min(n,arr.length)},async()=>{ while(k<arr.length){ const i=k++; out[i]=await fn(arr[i],i); } })); return out; }
 async function restoreDraft(d, id){
   restoring=true; const pending=[];
   try{
-    resetWork(); S.workId=id||d.id||S.workId; S.saved=d.saved||null;
+    resetWork(); S.workId=id||d.id||S.workId; S.saved=d.saved||null; S.c24=d.c24||null;
     $('txt').value=d.txt||'';
     const asset=async fid=>run('api_asset', S.code, fid);
     const jobs=[];
@@ -1502,6 +1541,7 @@ function showOut(){
   $('pvDetail').src=S.out.detail; $('dlDetail').href=S.out.detail; $('dlDetail').download=fn+'_상세페이지.jpg';
   $('pvSize').src=S.out.size; $('dlSize').href=S.out.size; $('dlSize').download=fn+'_사이즈표.png';
   drawBannerUI(); showBanners(); show('secOut');
+  show('secUp'); c24Fill();
 }
 $('btnRender').onclick=()=>guard(renderAll);
 $('btnRerender').onclick=()=>guard(renderAll);
@@ -1544,6 +1584,138 @@ async function saveAll(){
   saveDraft(true); await ensureSynced();
 }
 $('btnSave').onclick=()=>guard(saveAll);
+
+/* ───────────── 카페24 업로드 ───────────── */
+const C24={ st:null, meta:null, cats:new Set(), mains:new Set(), rep:0, models:new Set(), filled:null };
+const C24_SHOP='https://eunsam2089.cafe24.com', C24_FRONT='https://eeunarchive.com';
+function c24Redirect(){ return location.origin+location.pathname; }
+/** 카페24 로그인·허용 후 돌아왔을 때 (?code=…&state=…) */
+async function c24Return(){
+  const q=new URLSearchParams(location.search), code=q.get('code'), state=q.get('state');
+  if(!code) return c24Status();
+  history.replaceState(null,'',location.pathname);
+  if(!state || state!==lsGet('c24_state')){ log('카페24 연결: 확인값이 맞지 않아 중단했어요. "카페24 연결"을 다시 눌러주세요.','err'); return c24Status(); }
+  try{ await run('api_c24Exchange', S.code, code, c24Redirect()); lsSet('c24_state',''); log('카페24 연결 완료','ok'); }
+  catch(e){ log('카페24 연결 실패: '+e.message,'err'); }
+  await c24Status();
+}
+async function c24Status(){
+  try{ C24.st=await run('api_c24Status', S.code); }catch(e){ C24.st={error:e.message}; }
+  const s=C24.st;
+  $('c24St').textContent = s.error ? '카페24 확인 오류: '+s.error
+    : !s.clientSet ? '서버에 카페24 앱 키가 아직 없어요 (스크립트 속성 CAFE24_CLIENT_ID · CAFE24_CLIENT_SECRET).'
+    : s.connected ? `카페24 연결됨 · ${s.mall} · 재연결 필요일 ${s.refreshUntil||'-'}` : '카페24 연결 안 됨 — "카페24 연결"을 눌러 쇼핑몰 관리자로 허용해주세요.';
+  $('c24Connect').textContent = s.connected ? '카페24 다시 연결' : '카페24 연결';
+  show('c24Form', !!s.connected);
+  if(s.connected && !C24.meta) await c24LoadMeta().catch(e=>log('카페24 분류 불러오기 실패: '+e.message,'err'));
+}
+$('c24Connect').onclick=()=>guard(async()=>{
+  saveDraft(true); await ensureSynced();
+  const state=newId()+newId(); lsSet('c24_state', state);
+  const url=await run('api_c24AuthUrl', S.code, state, c24Redirect());
+  log('카페24 로그인 화면으로 이동해요 — 허용하면 앱으로 돌아와요');
+  location.href=url;
+});
+async function c24LoadMeta(){
+  C24.meta=await run('api_c24Meta', S.code);
+  const lastC=lsGet('c24_cats'), lastM=lsGet('c24_mains');
+  C24.cats=new Set(lastC ? lastC.split(',').filter(Boolean) : C24.meta.categories.filter(c=>/^(ALL|NEW)$/i.test(c.name.trim())).map(c=>String(c.no)));
+  C24.mains=new Set(lastM ? lastM.split(',').filter(Boolean) : C24.meta.mains.filter(m=>/new/i.test(m.name)).map(m=>String(m.no)));
+  drawC24Cats(); drawC24Mains();
+}
+$('c24Reload').onclick=()=>guard(async()=>{ C24.meta=null; await c24Status(); });
+function drawC24Cats(){
+  const box=$('c24Cats'); if(!C24.meta){ box.innerHTML=''; return; }
+  const q=$('c24CatQ').value.trim().toLowerCase();
+  const list=C24.meta.categories.filter(c=>!q || c.path.toLowerCase().includes(q) || C24.cats.has(String(c.no)));
+  box.innerHTML=list.map(c=>`<label><input type="checkbox" data-no="${c.no}" ${C24.cats.has(String(c.no))?'checked':''}>${esc(c.path)}</label>`).join('') || '<div class="muted">분류가 없어요</div>';
+  box.querySelectorAll('input').forEach(x=>x.onchange=()=>{ const n=x.dataset.no; x.checked?C24.cats.add(n):C24.cats.delete(n); });
+}
+$('c24CatQ').addEventListener('input',drawC24Cats);
+function drawC24Mains(){
+  const box=$('c24Mains'); if(!C24.meta){ box.innerHTML=''; return; }
+  box.innerHTML='';
+  C24.meta.mains.forEach(m=>{ const b=document.createElement('button'); b.className='sm chip'+(C24.mains.has(String(m.no))?' on':''); b.textContent=(C24.mains.has(String(m.no))?'✓ ':'')+m.name;
+    b.onclick=()=>{ const n=String(m.no); C24.mains.has(n)?C24.mains.delete(n):C24.mains.add(n); drawC24Mains(); }; box.appendChild(b); });
+}
+function drawC24Imgs(){
+  const bns=(S.out&&S.out.banners)||[];
+  if(C24.rep>=bns.length) C24.rep=0;
+  $('c24Rep').innerHTML = bns.length ? '' : '<div class="muted" style="grid-column:1/-1">배너가 없어요 — 등록할 때 자동으로 만들어요 (위 "배너 만들기"로 미리 골라도 돼요)</div>';
+  bns.forEach((b,k)=>{ const d=document.createElement('div'); d.className='it'+(k===C24.rep?' on':''); d.innerHTML=`<img src="${b.url}">${k===C24.rep?'<span class="ck">대표</span>':''}`; d.onclick=()=>{ C24.rep=k; drawC24Imgs(); }; $('c24Rep').appendChild(d); });
+  $('c24Models').innerHTML='';
+  S.images.forEach((im,k)=>{ const on=C24.models.has(im.key); const d=document.createElement('div'); d.className='it'+(on?' on':''); d.innerHTML=`<img src="${im.full.dataUrl}">${on?`<span class="ck">${[...S.images.filter(x=>C24.models.has(x.key))].indexOf(im)+1}</span>`:''}`;
+    d.onclick=()=>{ on?C24.models.delete(im.key):C24.models.add(im.key); drawC24Imgs(); }; $('c24Models').appendChild(d); });
+}
+/** 결과물이 나오면 업로드 칸을 지금 상품 정보로 채움 (상품이 바뀔 때만) */
+function c24Fill(){
+  const i=S.info; if(!i) return;
+  const key=S.workId+'|'+i.product_name;
+  if(C24.filled!==key){
+    C24.filled=key;
+    const c=costNow();
+    $('c24Name').value=i.product_name||'';
+    $('c24Price').value=c.krw ? computePrice(i.type, c.krw, i.user_sale_price||null).price : (i.user_sale_price||'');
+    $('c24Supply').value=c.krw||'';
+    $('c24SupCode').value=i.type==='1688' ? 'S00000TD' : '';
+    $('c24SupName').value=(i.supplier&&(i.supplier.url||i.supplier.name))||'';
+    $('c24Colors').value=i.sale_colors.map(x=>x.name).filter(Boolean).join(', ');
+    $('c24Sizes').value=String(i.sale_size||'FREE').split(/[\/,]/).map(s=>s.trim()).filter(Boolean).join(', ');
+    C24.models=new Set(S.images.map(x=>x.key)); C24.rep=0;
+    $('c24Links').innerHTML = S.c24 ? c24LinksHtml(S.c24.product_no) : '';
+  }
+  drawC24Imgs();
+  if(!C24.st) c24Status();
+}
+function c24LinksHtml(no){
+  return `<a href="${C24_SHOP}/disp/admin/shop1/product/productmodify?product_no=${no}" target="_blank">🛠 카페24 관리자에서 열기 (${no})</a><a href="${C24_FRONT}/product/detail.html?product_no=${no}" target="_blank">🛍 쇼핑몰 상품 페이지</a><a href="https://mp.cafe24.com/mp/product/front/detail?product_no=${no}" target="_blank">🔁 마켓플러스 (에이블리·큐텐 전송)</a>`;
+}
+/** 긴 이미지를 가로 1000px 이하 JPEG 조각들로 (카페24 에디터 업로드용) */
+async function c24Slices(src, maxH){
+  const im=await loadImg(src); const s=Math.min(1, 1000/iw(im)); const W=Math.round(iw(im)*s), H=Math.round(ih(im)*s), out=[];
+  for(let y=0;y<H;y+=maxH){ const h=Math.min(maxH,H-y); const cv=document.createElement('canvas'); cv.width=W; cv.height=h; const g=cv.getContext('2d');
+    g.fillStyle='#fff'; g.fillRect(0,0,W,h); g.imageSmoothingQuality='high'; g.drawImage(im, 0, y/s, iw(im), h/s, 0, 0, W, h); out.push(cv.toDataURL('image/jpeg',.9).split(',')[1]); }
+  return out;
+}
+async function c24Upload(){
+  readForm();
+  if(!S.out.detail) await renderAll();
+  if(!(S.out.banners||[]).length){ log('대표이미지용 배너를 만드는 중…'); await makeBanners(false); showOut(); }
+  const name=$('c24Name').value.trim(), price=Math.round(Number($('c24Price').value)), supply=Math.round(Number($('c24Supply').value)||0);
+  if(!name) throw new Error('상품명을 넣어주세요.');
+  if(!price) throw new Error('판매가를 넣어주세요.');
+  if(!C24.cats.size) throw new Error('분류를 하나 이상 골라주세요.');
+  const rep=(S.out.banners||[])[C24.rep]; if(!rep) throw new Error('대표이미지(배너)가 없어요.');
+  if(S.c24 && S.c24.product_no && !confirm(`이 작업은 이미 카페24에 등록했어요 (상품번호 ${S.c24.product_no}).\n새 상품으로 한 번 더 등록할까요?`)) return;
+  const split=v=>v.split(',').map(s=>s.trim()).filter(Boolean);
+  const options=[['색상',split($('c24Colors').value)],['사이즈',split($('c24Sizes').value)]].filter(o=>o[1].length).map(([n,v])=>({name:n, value:v}));
+  // 상세 이미지: 모델컷 → 사이즈표 → 상세페이지
+  const parts=[];
+  for(const im of S.images.filter(x=>C24.models.has(x.key))) parts.push(...await c24Slices(im.full.dataUrl, 2400));
+  parts.push(...await c24Slices(S.out.size, 2400));
+  parts.push(...await c24Slices(S.out.detail, 2400));
+  log(`카페24 상세 이미지 올리는 중… (${parts.length}장)`);
+  const paths=[];
+  for(const [k,b64] of parts.entries()){ paths.push(await run('api_c24UploadImage', S.code, b64)); if((k+1)%3===0||k===parts.length-1) log(`상세 이미지 ${k+1}/${parts.length}`); }
+  const html='<div style="text-align:center;">'+paths.map(p=>`<img src="${p}" style="max-width:100%;display:block;margin:0 auto;">`).join('')+'</div>';
+  const show1=$('c24Show').checked?'T':'F';
+  const req={ display:show1, selling:show1, product_name:name, supply_product_name:$('c24SupName').value.trim().slice(0,250), price, supply_price:supply,
+    has_option:options.length?'T':'F', options, description:html, mobile_description:html,
+    add_category_no:[...C24.cats].map(n=>({category_no:Number(n), recommend:'F', new:'F'})), main:[...C24.mains].map(String) };
+  const sc=$('c24SupCode').value.trim(); if(/^[A-Z0-9]{8}$/.test(sc)) req.supplier_code=sc;
+  if(!options.length) delete req.options;
+  log('카페24 상품 등록 중…');
+  const P=await run('api_c24CreateProduct', S.code, req);
+  log('대표이미지 올리는 중…');
+  const repB64=(await c24Slices(rep.url, 100000))[0];
+  try{ await run('api_c24SetImage', S.code, P.product_no, repB64); }catch(e){ log('대표이미지 등록 실패 — 관리자에서 직접 넣어주세요: '+e.message,'err'); }
+  lsSet('c24_cats',[...C24.cats].join(',')); lsSet('c24_mains',[...C24.mains].join(','));
+  S.c24={ product_no:P.product_no, product_code:P.product_code||'', at:Date.now() };
+  $('c24Links').innerHTML=c24LinksHtml(P.product_no)+`<div class="muted">등록 완료 · 상품번호 ${P.product_no}${show1==='F'?' · 숨김 상태':''}. 옵션 형태·분류를 관리자에서 한 번 확인해 주세요. 에이블리·큐텐 전송은 마켓플러스에서 해요.</div>`;
+  log(`카페24 등록 완료 · 상품번호 ${P.product_no}`,'ok');
+  saveDraft(true);
+}
+$('c24Go').onclick=()=>guard(c24Upload);
 
 /* ───────────── 자동 ───────────── */
 $('btnAuto').onclick=()=>guard(async()=>{
