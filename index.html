@@ -100,7 +100,7 @@
   body.wide { padding-right:421px; }
   body.wide .wrap { max-width:880px; }
   body.wide #log { right:421px; }
-  #lineM, #labM, #cropM { z-index:50; user-select:none; -webkit-user-select:none; }
+  body #lineM, body #labM, body #cropM { z-index:50; user-select:none; -webkit-user-select:none; }
   body.wide #btnSide { display:none !important; }
   .tag2 { font-size:11px; background:#111; color:#fff; border-radius:9px; padding:1px 7px; vertical-align:middle; }
   .lablib { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px; }
@@ -226,7 +226,7 @@
     <div class="cutrow" style="margin-top:12px"><div class="cn">사이즈표<br>도식화</div><div class="slot lineslot" id="lineSlot"></div></div>
     <div class="chk"><input type="checkbox" id="hq"><span>제품컷 고화질 (크레딧 더 씀 · 기본은 가성비 화질)</span></div>
     <div class="chk"><input type="checkbox" id="withBack"><span>뒷면 컷도 만들기 (뒷면 배너용 · 컬러당 1장 더)</span></div>
-    <div class="chk"><input type="checkbox" id="useCrops" checked><span>디테일 클로즈업 2장 넣기 (탭해서 영역 조정)</span></div>
+    <div class="chk"><input type="checkbox" id="useCrops" checked><span>디테일 클로즈업 2장 생성 (AI로 새로 만듦 · '부위'로 참고할 위치 지정)</span></div>
     <div class="crops" id="crops"></div>
   </section>
 
@@ -427,7 +427,7 @@ function snapshot(){
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
-    cuts, line, crops:S.crops, useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, rendered:!!(S.out&&S.out.detail), saved:S.saved,
+    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, rendered:!!(S.out&&S.out.detail), saved:S.saved,
     labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
   s.name=(s.info&&s.info.product_name)||(s.txt||'').split('\n')[0].slice(0,28)||'이름 없는 작업';
   s.status=statusOf(s); s.photos=s.images.length; s.thumb=thumbOf();
@@ -471,11 +471,13 @@ function syncNow(){
       for(const [ci,o] of Object.entries(S.cuts||{})) for(const v of VIEWS){ if(S.workId!==wid) return; const c=o&&o[v]; if(c&&c.b64) await put(c, `cut_${ci}_${v}.${c.mime==='image/png'?'png':'jpg'}`, c.mime, c.b64); }
       if(S.workId!==wid) return;
       if(S.line&&S.line.b64) await put(S.line, 'line.png', S.line.mime||'image/png', S.line.b64);
+      for(const [k,c] of (S.crops||[]).entries()){ if(S.workId!==wid) return; const gd=c&&c.gen; if(gd&&gd.b64&&!gd.fid) await put(gd, `detail_${k}_${Date.now().toString(36)}.${gd.mime==='image/png'?'png':'jpg'}`, gd.mime, gd.b64); }
       if(S.workId!==wid) return;
       const s=snapshot();
       const srv={...s, images:s.images.map(x=>({...x, full:null}))};
       Object.values(srv.cuts).forEach(o=>Object.keys(o).forEach(v=>{ o[v]={...o[v], b64:null}; }));
       if(srv.line) srv.line={...srv.line, b64:null};
+      srv.crops=(srv.crops||[]).map(c=>c.gen&&c.gen.fid?{...c, gen:{...c.gen, b64:null}}:c);
       await run('api_workSave', S.code, srv);
       await writeLocal(s, true);
       setSync('☁ 드라이브에 저장됨 '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
@@ -576,6 +578,10 @@ async function restoreDraft(d, id){
     Object.entries(d.cuts||{}).forEach(([ci,o])=>VIEWS.forEach(v=>{ const c=o[v]; if(!c) return;
       if(c.b64||c.fid) jobs.push(async()=>({k:'cut', ci, v, c, url:c.b64?'data:'+c.mime+';base64,'+c.b64:await asset(c.fid)}));
       else if(c.job) pending.push(()=>genCut(Number(ci),v,c.job)); }));
+    const crops0=(d.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:null}));
+    (d.crops||[]).forEach((c,k)=>{ const gd=c.gen; if(!gd) return;
+      if(gd.b64||gd.fid) jobs.push(async()=>({k:'crop', idx:k, c:gd, url:gd.b64?'data:'+gd.mime+';base64,'+gd.b64:await asset(gd.fid)}));
+      else if(gd.job){ crops0[k].gen={loading:true, job:gd.job}; pending.push(()=>genDetail(k, gd.job)); } });
     if(d.line&&(d.line.b64||d.line.fid)) jobs.push(async()=>({k:'line', url:d.line.b64?'data:'+(d.line.mime||'image/png')+';base64,'+d.line.b64:await asset(d.line.fid)}));
     if(jobs.length) log(`작업 불러오는 중… (이미지 ${jobs.length}개)`);
     const got=await mapPool(jobs, 4, f=>f());
@@ -583,10 +589,11 @@ async function restoreDraft(d, id){
     for(const g of got){
       if(g.k==='img'){ S.images.push({name:g.x.name, key:g.x.key||newId(), fid:g.x.fid||null, full:{dataUrl:g.url, w:g.x.w, h:g.x.h, img:await loadImg(g.url)}, api: await apiFromDataUrl(g.url)}); }
       else if(g.k==='cut'){ S.cuts[g.ci]=S.cuts[g.ci]||{}; S.cuts[g.ci][g.v]={mime:g.c.mime, fid:g.c.fid||null, b64:g.url.split(',')[1], img:await loadImg(g.url)}; }
+      else if(g.k==='crop'){ crops0[g.idx].gen={mime:g.c.mime, fid:g.c.fid||null, b64:g.url.split(',')[1], img:await loadImg(g.url)}; }
       else if(g.k==='line'){ S.line={mime:d.line.mime||'image/png', fid:d.line.fid||null, b64:g.url.split(',')[1], lines:d.line.lines||[], img:await loadImg(g.url)}; }
     }
     if(d.line&&d.line.job&&!S.line){ S.line={loading:true, job:d.line.job}; pending.push(()=>genLine(d.line.job)); }
-    S.crops=d.crops||[];
+    S.crops=crops0;
     S.labels=[];
     if((d.labels||[]).length){ let lib=[]; try{ lib=await loadLabelLib(); }catch(e){}
       for(const L of d.labels){ const m=lib.find(x=>x.id===L.id); const url=L.dataUrl||(m&&m.dataUrl); if(!url) continue; S.labels.push({...L, dataUrl:url, img:m&&!L.dataUrl?m.img:await loadImg(url)}); } }
@@ -834,6 +841,7 @@ async function genAllCuts(){
   }));
   const tasks=[...t0, ...tN];
   if(!(S.line&&S.line.img)) tasks.push(async()=>{ await first.front.p; await genLine(); });
+  if($('useCrops').checked) (S.crops||[]).forEach((c,k)=>{ if(!(c.gen&&(c.gen.img||c.gen.loading))) tasks.push(async()=>{ await first.front.p; await genDetail(k); }); });
   await pool(tasks, 3);
 }
 
@@ -999,24 +1007,59 @@ function defaultCrops(info){
   }
   return out.slice(0,2);
 }
-function cropCanvas(c){
-  const im=S.images[c.imageIndex].full.img;
+/** 원본 사진에서 지정한 부위만 잘라낸 것 (클로즈업 생성의 참고용) */
+function srcCrop(c){
+  const im=S.images[c.imageIndex]; if(!im) return null;
   const cv=document.createElement('canvas'); cv.width=BOX.w; cv.height=BOX.h;
   const g=cv.getContext('2d'); g.imageSmoothingQuality='high';
-  g.drawImage(im, c.rect.x, c.rect.y, c.rect.w, c.rect.h, 0,0,BOX.w,BOX.h);
+  g.drawImage(im.full.img, c.rect.x, c.rect.y, c.rect.w, c.rect.h, 0,0,BOX.w,BOX.h);
+  return cv;
+}
+/** 상세페이지에 들어갈 클로즈업 = AI로 생성한 이미지만 (원본 캡처는 안 씀) */
+function cropCanvas(c){
+  const img=c.gen&&c.gen.img; if(!img) return null;
+  const cv=document.createElement('canvas'); cv.width=BOX.w; cv.height=BOX.h;
+  const g=cv.getContext('2d'); g.imageSmoothingQuality='high'; g.fillStyle='#eee'; g.fillRect(0,0,BOX.w,BOX.h);
+  const s=Math.max(BOX.w/iw(img), BOX.h/ih(img)), w=iw(img)*s, h=ih(img)*s;
+  g.drawImage(img,(BOX.w-w)/2,(BOX.h-h)/2,w,h);
   return cv;
 }
 function drawCrops(){
   const box=$('crops'); box.innerHTML='';
   S.crops.forEach((c,k)=>{
-    const s=document.createElement('div'); s.className='slot'; s.style.cursor='pointer';
-    s.innerHTML=`<img src="${cropCanvas(c).toDataURL('image/jpeg',.8)}"><span class="tag">${c.label}</span>`;
-    s.onclick=()=>openCrop(k); box.appendChild(s);
+    const st=c.gen;
+    const s=document.createElement('div'); s.className='slot';
+    s.innerHTML=`<span class="tag">${esc(c.label)}</span>`+
+      (st&&st.loading?'<div class="spin"></div>':st&&st.img?`<img src="${st.img.src}">`:'<span style="padding:0 10px;text-align:center;font-size:12px">없음 · 생성을 눌러요</span>')+
+      `<div class="acts"><button class="sm" data-a="gen">${st&&st.img?'다시':'생성'}</button><button class="sm" data-a="pick">부위</button><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 8px;font-size:13px;background:#fff;cursor:pointer">내 사진<input type="file" accept="image/*" style="display:none"></label></div>`;
+    s.querySelector('[data-a=gen]').onclick=()=>guard(()=>genDetail(k));
+    s.querySelector('[data-a=pick]').onclick=()=>openCrop(k);
+    s.querySelector('input[type=file]').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; const p=await prepImage(f); c.gen={img:p.full.img, mime:'image/jpeg', b64:p.full.dataUrl.split(',')[1]}; drawCrops(); saveDraft(); };
+    box.appendChild(s);
   });
+}
+async function genDetail(k, resumeJob){
+  readForm();
+  const c=S.crops[k]; if(!c) return;
+  const col=S.info.sale_colors[0]||{name:'',hex:''}, colEn=col.en||col.name;
+  const nm=`클로즈업 ${k+1} (${c.label})`;
+  c.gen={loading:true, job:resumeJob}; drawCrops();
+  if(!resumeJob) log(`${nm} 생성 중… (1~3분)`);
+  try{
+    const refs=[]; const sc=srcCrop(c); if(sc) refs.push({mime:'image/jpeg', b64:sc.toDataURL('image/jpeg',.9).split(',')[1]});
+    const cut=(S.cuts[0]||{}).front; if(cut&&cut.img) refs.push(jpegOf(cut.img,1024,'#eee'));
+    if(S.images[c.imageIndex]) refs.push(S.images[c.imageIndex].api);
+    const req={ focus:c.label, colorEn:colEn, hex:col.hex, hasCut:!!(cut&&cut.img), hint:neutralHint(S.info.ghost_prompt||S.info.product_name), quality:$('hq').checked?'high':'', refs };
+    const r=await genImage('api_generateDetail', req, nm, job=>{ c.gen={loading:true, job}; saveDraft(true); }, resumeJob);
+    const url='data:'+r.mime+';base64,'+r.b64;
+    c.gen={img:await loadImg(url), mime:r.mime, b64:r.b64};
+    log(`${nm} 완료`,'ok'); saveDraft(true);
+  }catch(e){ c.gen=null; drawCrops(); throw e; }
+  drawCrops();
 }
 let CR=null;
 function openCrop(k){
-  CR={k, c:JSON.parse(JSON.stringify(S.crops[k]))};
+  const {gen, ...rest}=S.crops[k]; CR={k, gen, c:JSON.parse(JSON.stringify(rest))};
   $('cropSrc').innerHTML=S.images.map((im,i)=>`<option value="${i}">사진 ${i}</option>`).join('');
   $('cropSrc').value=CR.c.imageIndex; $('cropLabel').value=CR.c.label;
   show('cropM'); layoutCrop();
@@ -1045,7 +1088,7 @@ $('cropSrc').onchange=()=>{ CR.c.imageIndex=Number($('cropSrc').value); CR.c.rec
   cv.addEventListener('pointermove',e=>{ if(!drag) return; CR.c.rect.x=drag.rx+(e.clientX-drag.x)*drag.k/CR.s; CR.c.rect.y=drag.ry+(e.clientY-drag.y)*drag.k/CR.s; clampRect(); paintCrop(); });
   cv.addEventListener('pointerup',()=>drag=null); cv.addEventListener('pointercancel',()=>drag=null);
 })();
-$('cropOk').onclick=()=>{ CR.c.label=$('cropLabel').value.trim()||'디테일'; S.crops[CR.k]=CR.c; show('cropM',false); drawCrops(); saveDraft(); };
+$('cropOk').onclick=()=>{ CR.c.label=$('cropLabel').value.trim()||'디테일'; S.crops[CR.k]={...CR.c, gen:CR.gen}; show('cropM',false); drawCrops(); saveDraft(); };
 $('cropCancel').onclick=()=>show('cropM',false);
 
 /* ───────────── 라벨 (EEUN MADE) ───────────── */
@@ -1377,7 +1420,7 @@ async function renderDetail(){
     boxes.push({cv:productBox(cut.front&&composeFront(cut.front.img), 640, 770), dot:c.hex});
     if(cut.side&&cut.side.img) boxes.push({cv:productBox(composeCut(cut.side.img,'side'), 560, 790)});
   });
-  if($('useCrops').checked) S.crops.forEach(c=>boxes.push({cv:cropCanvas(c)}));
+  if($('useCrops').checked) S.crops.forEach(c=>{ const cv=cropCanvas(c); if(cv) boxes.push({cv}); });
   const TOP=210, GAP=80, X0=90, LX=115;
   const textTop=TOP+boxes.length*BOX.h+(boxes.length-1)*GAP+200;
   const cv=document.createElement('canvas'); cv.width=1000; cv.height=textTop+1200; const g=cv.getContext('2d');
@@ -1483,7 +1526,7 @@ async function saveAll(){
     else cp(cut, F.shotsId, `${fn}_${pad(k)}_${c.name}_${VNAME[v]}.${cut.mime==='image/png'?'png':'jpg'}`, cut.mime, cut.b64);
   }
   (S.out.banners||[]).forEach(bn=>up(F.productId, `${fn}_${safeName(bn.name)}.jpg`, 'image/jpeg', b64(bn.url)));
-  if($('useCrops').checked) for(const c of S.crops){ const k=n++; up(F.shotsId, `${fn}_${pad(k)}_디테일_${safeName(c.label)}.jpg`,'image/jpeg', b64(cropCanvas(c).toDataURL('image/jpeg',.92))); }
+  if($('useCrops').checked) for(const c of S.crops){ const cv=cropCanvas(c); if(!cv) continue; const k=n++; up(F.shotsId, `${fn}_${pad(k)}_디테일_${safeName(c.label)}.jpg`,'image/jpeg', b64(cv.toDataURL('image/jpeg',.92))); }
   up(F.shotsId, `${fn}_${pad(n++)}_사이즈표.png`,'image/png', b64(S.out.size));
   if(S.line&&S.line.b64){ const k=n++; cp(S.line, F.shotsId, `${fn}_${pad(k)}_도식화.png`, S.line.mime||'image/png', S.line.b64); }
   S.images.forEach((im,k)=>cp(im, F.srcId, `원본_${pad(k)}.jpg`, 'image/jpeg', b64(im.full.dataUrl)));
