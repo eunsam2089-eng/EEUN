@@ -56,6 +56,22 @@
   .cutrow { display:grid; grid-template-columns:auto 1fr 1fr; gap:10px; align-items:start; }
   .cutrow.three { grid-template-columns:auto 1fr 1fr 1fr; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .layrow { display:grid; grid-template-columns:20px 22px 40px 1fr auto auto 44px; gap:8px; align-items:center; padding:8px 0; border-top:1px solid #eee; font-size:14px; }
+  .layrow.off .layn { color:#aaa; text-decoration:line-through; }
+  .layrow img { width:40px; height:40px; object-fit:cover; border-radius:6px; background:#f1f1f1; cursor:zoom-in; }
+  .layrow input { width:18px; height:18px; margin:0; }
+  .layrow button { white-space:nowrap; }
+  .layic { width:22px; height:22px; border-radius:11px; background:#111; color:#fff; font-size:12px; display:inline-flex; align-items:center; justify-content:center; }
+  .addbtn { display:block; margin-top:10px; padding:12px; border:1.5px dashed #bbb; border-radius:10px; text-align:center; font-size:14px; color:#333; cursor:pointer; background:#fafafa; }
+  .minelist { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .mine { width:84px; text-align:center; } .mine img { width:84px; height:84px; object-fit:cover; border-radius:8px; background:#f1f1f1; cursor:zoom-in; display:block; margin-bottom:4px; }
+  .slot img, .pv img, #bnrOut img { cursor:zoom-in; }
+  #pvDetailBox img { display:block; width:100%; }
+  #viewer { position:fixed; inset:0; background:rgba(245,245,245,.98); z-index:70; display:flex; flex-direction:column; }
+  #viewWrap { flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; padding:12px; -webkit-overflow-scrolling:touch; }
+  #viewImg { max-width:100%; max-height:100%; object-fit:contain; cursor:zoom-in; }
+  #viewImg.zoom { max-width:none; max-height:none; cursor:zoom-out; align-self:flex-start; }
+  #viewer .vbar { display:flex; gap:10px; align-items:center; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); border-top:1px solid #e5e5e5; background:#fff; }
   .bar2 { display:grid; grid-template-columns:72px 1fr 44px; gap:8px; align-items:center; margin-top:10px; font-size:13px; color:var(--sub); }
   .bar2 b { font-weight:500; color:var(--ink); text-align:right; }
   .chip { display:inline-flex; align-items:center; gap:6px; border-color:#ccc; }
@@ -241,8 +257,13 @@
   <section id="secOut" class="hidden">
     <h2><span class="n">4</span>결과물</h2>
     <div class="out">
-      <div><div class="muted">상세페이지</div><div class="pv"><img id="pvDetail"></div><a id="dlDetail" class="muted" download>다운로드</a></div>
+      <div><div class="muted">상세페이지 (완성본)</div><div class="pv" id="pvDetailBox"></div><div id="dlDetailBox"></div></div>
       <div><div class="muted">사이즈표</div><div class="pv"><img id="pvSize"></div><a id="dlSize" class="muted" download>다운로드</a></div>
+    </div>
+    <div id="layBox">
+      <h3 style="margin:22px 0 4px;font-size:15px">상세페이지 구성 <span class="muted" style="font-weight:400">· 위에서부터 순서대로 이어 붙여요 · 체크 해제하면 빠짐</span></h3>
+      <div id="layList"></div>
+      <label class="addbtn">+ 포토샵 등으로 만든 내 상세 이미지 넣기 (여러 장 · 1·2·… 순서)<input type="file" id="myDetFiles" accept="image/*" multiple hidden></label>
     </div>
     <div id="bnrBox">
       <h3 style="margin:22px 0 4px;font-size:15px">배너 <span class="muted" style="font-weight:400">· 제품컷으로 만들어서 GPT 크레딧 안 씀 · 상세페이지와 별도 파일</span></h3>
@@ -258,6 +279,8 @@
       <label>배경색</label>
       <div class="chips" id="bnrBg"><button class="sm chip" data-bg="#FFFFFF"><span class="dot" style="background:#FFFFFF;border:1px solid #ccc"></span>화이트</button><button class="sm chip" data-bg="#000000"><span class="dot" style="background:#000"></span>블랙</button><button class="sm chip" data-bg="#9A9592"><span class="dot" style="background:#9A9592"></span>베이지</button><label class="sm chip" style="border:1px solid #ccc;border-radius:8px;padding:5px 10px;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="color" id="bnrBgPick" value="#9A9592" style="width:22px;height:22px;padding:0;border:0;background:none">직접</label></div>
       <div class="chk"><input type="checkbox" id="bnrBack"><span>뒷면 배너도 (뒷면 컷 없으면 생성 · 크레딧 사용)</span></div>
+      <label class="addbtn">+ 내 사진으로 배너 (여러 장 · 누끼 PNG는 같은 여백, 일반 사진은 꽉 차게)<input type="file" id="bnrMineFiles" accept="image/*" multiple hidden></label>
+      <div id="bnrMineList" class="minelist"></div>
       <div class="btns"><button id="btnBanner">배너 만들기</button><button id="btnBannerSave">배너만 드라이브 저장</button></div>
       <div class="muted" style="font-size:12px">배너는 필요할 때만 만들어요. 만든 배너는 "드라이브·시트 저장" 때도 같이 올라가요.</div>
       <div id="bnrOut" class="out"></div>
@@ -292,21 +315,7 @@
       <div id="c24Cats" class="c24list"></div>
       <label>메인진열</label><div id="c24Mains" class="chips"></div>
       <label>대표이미지 (배너 중 1장)</label><div id="c24Rep" class="c24imgs"></div>
-      <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0">
-        <b style="font-size:14px">AI 모델컷 만들기</b> <span class="muted" style="font-size:12px">기준 모델 사진에 우리 옷을 입히고 포즈를 바꿔요</span>
-        <label>기준 모델 사진 (하나 고르기 · 한 번 올리면 다음 상품에도 계속 써요)</label>
-        <div id="mgLib" class="c24imgs"></div>
-        <div class="btns" style="margin:6px 0"><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 10px;font-size:13px;background:#fff;cursor:pointer">＋ 기준 모델 추가<input type="file" id="mgAdd" accept="image/*" multiple style="display:none"></label><button class="sm" id="mgDel">고른 기준 삭제</button></div>
-        <div class="row"><div><label>입힐 컬러</label><select id="mgColor"></select></div><div><label>화질</label><select id="mgQ"><option value="">가성비</option><option value="high">고화질 (크레딧 더 씀)</option></select></div></div>
-        <label>포즈 (정면 전신은 항상 먼저 만들고, 나머지는 그 컷을 보고 포즈만 바꿔요)</label>
-        <div class="chips" id="mgPoses"></div>
-        <div class="btns"><button class="pri" id="mgGo">모델컷 생성</button></div>
-      </div>
-      <label>모델컷 (누른 순서대로 배치 — 1번: 로고·문구 들어간 첫 장, 2·3번: 나란히, 그다음 한 장씩)</label>
-      <div class="btns" style="margin:4px 0 8px"><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 10px;font-size:13px;background:#fff;cursor:pointer">＋ 모델컷 추가 (보정한 사진)<input type="file" id="c24AddModel" accept="image/*" multiple style="display:none"></label><button class="sm" id="c24ModelClear">선택 모두 해제</button><button class="sm" id="c24ModelBuild">모델 섹션 미리보기</button></div>
-      <div id="c24Models" class="c24imgs"></div>
-      <div class="pv hidden" id="c24ModelPv" style="margin-top:10px"><img id="c24ModelImg" style="width:100%;display:block"></div>
-      <div class="muted" style="font-size:12px">상세 순서: 모델컷 → 상세페이지(제품컷·클로즈업·정보) → 사이즈표. 대표이미지는 상세에 넣지 않아요.</div>
+      <div class="muted" style="font-size:12px;margin-top:10px">상세 이미지는 위 "상세페이지 구성" 순서 그대로 올라가요 (내 이미지 → 디테일컷 → 사이즈표). 대표이미지는 상세에 넣지 않아요.</div>
       <div class="chk"><input type="checkbox" id="c24Show" checked><span>바로 진열·판매 (끄면 숨김 상태로 등록 — 테스트할 때)</span></div>
       <div class="btns"><button class="pri" id="c24Go">카페24에 등록</button></div>
       <div class="links" id="c24Links"></div>
@@ -334,6 +343,7 @@
   <canvas id="lineC"></canvas>
   <div class="bar"><button id="lineRe">GPT로 다시 잡기</button><button id="lineOk" style="background:#fff;color:#111">적용</button></div>
 </div>
+<div id="viewer" class="hidden"><div id="viewWrap"><img id="viewImg"></div><div class="vbar"><span style="color:#888;font-size:12px">사진을 누르면 원래 크기 · 바깥을 누르면 닫기</span><span style="flex:1"></span><a id="viewDl" download="eeun.png">저장</a><button class="sm" id="viewClose">닫기</button></div></div>
 <div id="sideBg" class="hidden"></div>
 <aside id="side" class="hidden">
   <div class="sideHead"><b style="font-size:16px">작업 목록</b><span style="flex:1"></span><button class="sm" id="sideRefresh">새로고침</button><button class="sm" id="sideClose">닫기</button></div>
@@ -482,7 +492,8 @@ function snapshot(){
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h, model:!!im.model})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
-    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, rendered:!!(S.out&&S.out.detail), saved:S.saved, c24:S.c24||null,
+    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, bnrColorMade:colorBannersMade(), layout:S.layout, layoutOff:S.layoutOff,
+    myDet:(S.myDet||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), bnrMine:(S.bnrMine||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), rendered:!!(S.out&&S.out.detail), saved:S.saved, c24:S.c24||null,
     labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
   s.name=(s.info&&s.info.product_name)||(s.txt||'').split('\n')[0].slice(0,28)||'이름 없는 작업';
   s.status=statusOf(s); s.photos=s.images.length; s.thumb=thumbOf();
@@ -521,11 +532,13 @@ function syncNow(){
     const wid=S.workId; setSync('☁ 드라이브 저장 중…');
     try{
       const fid=await workFolderId(wid);
-      const put=async(obj,name,mime,b64)=>{ if(!obj||obj.fid||!b64||obj.loading) return; const up=await run('api_uploadFile', S.code, fid, name, mime, b64); obj.fid=up.id; };
+      const put=async(obj,name,mime,b64)=>{ if(!obj||obj.fid||!b64||obj.loading) return; const up=await run('api_uploadFile', S.code, fid, name, mime, b64); obj.fid=up.id; assetCachePut(up.id, 'data:'+mime+';base64,'+b64); };
       for(const im of [...S.images]){ if(S.workId!==wid) return; if(!im.key) im.key=newId(); await put(im, `img_${im.key}.jpg`, 'image/jpeg', im.full.dataUrl.split(',')[1]); }
       for(const [ci,o] of Object.entries(S.cuts||{})) for(const v of VIEWS){ if(S.workId!==wid) return; const c=o&&o[v]; if(c&&c.b64) await put(c, `cut_${ci}_${v}.${c.mime==='image/png'?'png':'jpg'}`, c.mime, c.b64); }
       if(S.workId!==wid) return;
       if(S.line&&S.line.b64) await put(S.line, 'line.png', S.line.mime||'image/png', S.line.b64);
+      for(const m of [...(S.myDet||[])]){ if(S.workId!==wid) return; await put(m, `det_${m.key}.jpg`, 'image/jpeg', m.dataUrl.split(',')[1]); }
+      for(const m of [...(S.bnrMine||[])]){ if(S.workId!==wid) return; const png=/^data:image\/png/.test(m.dataUrl); await put(m, `bnr_${m.key}.${png?'png':'jpg'}`, png?'image/png':'image/jpeg', m.dataUrl.split(',')[1]); }
       for(const [k,c] of (S.crops||[]).entries()){ if(S.workId!==wid) return; const gd=c&&c.gen; if(gd&&gd.b64&&!gd.fid) await put(gd, `detail_${k}_${Date.now().toString(36)}.${gd.mime==='image/png'?'png':'jpg'}`, gd.mime, gd.b64); }
       if(S.workId!==wid) return;
       const s=snapshot();
@@ -617,7 +630,7 @@ async function apiFromDataUrl(dataUrl){
   cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return { mime:'image/jpeg', b64: cv.toDataURL('image/jpeg',.85).split(',')[1] };
 }
 function resetWork(){
-  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false;
+  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[]; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false;
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
   S.c24=null; C24.filled=null; $('c24Links').innerHTML=''; show('c24Form',false);
   ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
@@ -628,7 +641,16 @@ async function restoreDraft(d, id){
   try{
     resetWork(); S.workId=id||d.id||S.workId; S.saved=d.saved||null; S.c24=d.c24||null;
     $('txt').value=d.txt||'';
-    const asset=async fid=>run('api_asset', S.code, fid);
+    // 이미지: 이 폰 캐시 먼저, 없는 것만 드라이브에서 6개씩 동시에
+    const want=[], collect=f=>{ if(f) want.push(f); };
+    (d.images||[]).forEach(x=>{ if(!x.full) collect(x.fid); }); Object.values(d.cuts||{}).forEach(o=>VIEWS.forEach(v=>{ const c=o[v]; if(c&&!c.b64) collect(c.fid); }));
+    (d.crops||[]).forEach(c=>{ if(c.gen&&!c.gen.b64) collect(c.gen.fid); }); if(d.line&&!d.line.b64) collect(d.line.fid);
+    (d.myDet||[]).forEach(m=>{ if(!m.dataUrl) collect(m.fid); }); (d.bnrMine||[]).forEach(m=>{ if(!m.dataUrl) collect(m.fid); });
+    const have={}; for(const f of want){ const c=await assetCacheGet(f); if(c) have[f]=c; }
+    const miss=want.filter(f=>!have[f]);
+    if(miss.length){ log(`드라이브에서 이미지 ${miss.length}개 받는 중… (이 폰에 저장해 두면 다음엔 바로 열려요)`);
+      await mapPool(miss, 6, async f=>{ try{ have[f]=await run('api_asset', S.code, f); assetCachePut(f, have[f]); }catch(e){} }); }
+    const asset=async fid=>have[fid] || (have[fid]=await run('api_asset', S.code, fid));
     const jobs=[];
     (d.images||[]).forEach(x=>jobs.push(async()=>{ const url=x.full||await asset(x.fid); return {k:'img', x, url}; }));
     Object.entries(d.cuts||{}).forEach(([ci,o])=>VIEWS.forEach(v=>{ const c=o[v]; if(!c) return;
@@ -638,6 +660,8 @@ async function restoreDraft(d, id){
     (d.crops||[]).forEach((c,k)=>{ const gd=c.gen; if(!gd) return;
       if(gd.b64||gd.fid) jobs.push(async()=>({k:'crop', idx:k, c:gd, url:gd.b64?'data:'+gd.mime+';base64,'+gd.b64:await asset(gd.fid)}));
       else if(gd.job){ crops0[k].gen={loading:true, job:gd.job}; pending.push(()=>genDetail(k, gd.job)); } });
+    (d.myDet||[]).forEach(m=>jobs.push(async()=>({k:'det', m, url:m.dataUrl||await asset(m.fid)})));
+    (d.bnrMine||[]).forEach(m=>jobs.push(async()=>({k:'bm', m, url:m.dataUrl||await asset(m.fid)})));
     if(d.line&&(d.line.b64||d.line.fid)) jobs.push(async()=>({k:'line', url:d.line.b64?'data:'+(d.line.mime||'image/png')+';base64,'+d.line.b64:await asset(d.line.fid)}));
     if(jobs.length) log(`작업 불러오는 중… (이미지 ${jobs.length}개)`);
     const got=await mapPool(jobs, 4, f=>f());
@@ -646,10 +670,12 @@ async function restoreDraft(d, id){
       if(g.k==='img'){ S.images.push({name:g.x.name, key:g.x.key||newId(), fid:g.x.fid||null, model:!!g.x.model, full:{dataUrl:g.url, w:g.x.w, h:g.x.h, img:await loadImg(g.url)}, api: await apiFromDataUrl(g.url)}); }
       else if(g.k==='cut'){ S.cuts[g.ci]=S.cuts[g.ci]||{}; S.cuts[g.ci][g.v]={mime:g.c.mime, fid:g.c.fid||null, b64:g.url.split(',')[1], img:await loadImg(g.url)}; }
       else if(g.k==='crop'){ crops0[g.idx].gen={mime:g.c.mime, fid:g.c.fid||null, b64:g.url.split(',')[1], img:await loadImg(g.url)}; }
+      else if(g.k==='det'&&g.url){ S.myDet.push({key:g.m.key, fid:g.m.fid||null, dataUrl:g.url, img:await loadImg(g.url)}); }
+      else if(g.k==='bm'&&g.url){ S.bnrMine.push({key:g.m.key, fid:g.m.fid||null, dataUrl:g.url, img:await loadImg(g.url)}); }
       else if(g.k==='line'){ S.line={mime:d.line.mime||'image/png', fid:d.line.fid||null, b64:g.url.split(',')[1], lines:d.line.lines||[], img:await loadImg(g.url)}; }
     }
     if(d.line&&d.line.job&&!S.line){ S.line={loading:true, job:d.line.job}; pending.push(()=>genLine(d.line.job)); }
-    S.crops=crops0;
+    S.crops=crops0; S.layout=d.layout||null; S.layoutOff=d.layoutOff||{};
     S.labels=[];
     if((d.labels||[]).length){ let lib=[]; try{ lib=await loadLabelLib(); }catch(e){}
       for(const L of d.labels){ const m=lib.find(x=>x.id===L.id); const url=L.dataUrl||(m&&m.dataUrl); if(!url) continue; S.labels.push({...L, dataUrl:url, img:m&&!L.dataUrl?m.img:await loadImg(url)}); } }
@@ -662,7 +688,7 @@ async function restoreDraft(d, id){
       $('useCrops').checked=true;
       if(!S.crops.length) S.crops=defaultCrops(S.info);
       show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
-      if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); if(d.bnrMade) await makeBanners(false); showOut(); }
+      if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); await composePages(); if(d.bnrMade||S.bnrMine.length) await makeBanners(false, d.bnrColorMade===false); showOut(); }
       if(S.saved) $('links').innerHTML=`<a href="${S.saved.folderUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${S.saved.sheetUrl}" target="_blank">📊 샘플시트 ${S.saved.row}행</a><div class="muted">이미 저장된 작업이에요. 고쳐서 "드라이브·시트 저장"을 다시 누르면 같은 폴더·행이 갱신돼요.</div>`;
     }
     log('작업을 불러왔어요: '+((S.info&&S.info.product_name)||'입력 중'),'ok');
@@ -898,7 +924,7 @@ async function genAllCuts(){
   const tasks=[...t0, ...tN];
   if(!(S.line&&S.line.img)) tasks.push(async()=>{ await first.front.p; await genLine(); });
   if($('useCrops').checked) (S.crops||[]).forEach((c,k)=>{ if(!(c.gen&&(c.gen.img||c.gen.loading))) tasks.push(async()=>{ await first.front.p; await genDetail(k); }); });
-  await pool(tasks, 3);
+  await pool(tasks, 6);
 }
 
 /* ───────────── 사이즈표 도식화 (라인) ───────────── */
@@ -1367,9 +1393,9 @@ function renderEach(items){
   const B=bnBox(), bb=items.map(im=>alphaBBox(im)), s=Math.min(...bb.map(b=>Math.min(B.bw/b.w, B.bh/b.h)));
   return items.map((im,k)=>{ const {cv,g}=bnCanvas(), b=bb[k], w=b.w*s, h=b.h*s; g.drawImage(im,b.x,b.y,b.w,b.h,(B.W-w)/2,(B.H-h)/2,w,h); return cv.toDataURL('image/jpeg',0.93); });
 }
-async function makeBanners(generateMissing){
+async function makeBanners(generateMissing, mineOnly){
   if(!S.info) return; const cols=bnrColors(); S.out.banners=[];
-  if(!cols.length){ showBanners(); return; }
+  if(!cols.length || mineOnly){ (S.bnrMine||[]).forEach((m,k)=>S.out.banners.push({name:`배너_내사진${k+1}${bgTag()}`, url:renderMine(m.img)})); showBanners(); return; }
   const views=[S.bnr.view].concat(S.bnr.back?['back']:[]);
   if(generateMissing){
     const miss=[]; views.forEach(v=>cols.forEach(ci=>{ if(!((S.cuts[ci]||{})[v]||{}).img) miss.push([ci,v]); }));
@@ -1387,6 +1413,7 @@ async function makeBanners(generateMissing){
     else if(S.bnr.mode==='row' && list.length>1) S.out.banners.push({name:`배너${tag?'_'+tag:''}_${names}${bgTag()}`, url:renderBannerImg(list.map(x=>x.im))});
     else renderEach(list.map(x=>x.im)).forEach((url,k)=>S.out.banners.push({name:`배너${tag?'_'+tag:''}_${S.info.sale_colors[list[k].ci].name}${bgTag()}`, url}));
   }
+  (S.bnrMine||[]).forEach((m,k)=>S.out.banners.push({name:`배너_내사진${k+1}${bgTag()}`, url:renderMine(m.img)}));
   showBanners();
 }
 function showBanners(){
@@ -1437,6 +1464,116 @@ async function renderJakjiCard(){
   }
   return cv.toDataURL('image/jpeg',0.86).split(',')[1];
 }
+
+/* ───────────── 상세페이지 구성: 내 이미지(포토샵) 1·2… → 디테일컷 → 사이즈표 ───────────── */
+S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[];
+const LAY_NAME={detail:'디테일컷 (제품컷·클로즈업·정보)', size:'사이즈표'};
+function layoutList(){
+  if(!Array.isArray(S.layout)) S.layout=['detail','size'];
+  S.layout=S.layout.filter(k=>LAY_NAME[k] || (k.startsWith('img:') && S.myDet.some(m=>'img:'+m.key===k)));
+  const firstAuto=S.layout.findIndex(k=>!k.startsWith('img:'));
+  S.myDet.forEach(m=>{ const k='img:'+m.key; if(!S.layout.includes(k)){ const at=S.layout.findIndex(x=>!x.startsWith('img:')); S.layout.splice(at<0?S.layout.length:at,0,k); } });
+  ['detail','size'].forEach(k=>{ if(!S.layout.includes(k)) S.layout.push(k); });
+  return S.layout;
+}
+function drawLayout(){
+  const box=$('layList'); if(!box) return; box.innerHTML='';
+  const L=layoutList(); let n=0;
+  L.forEach((k,idx)=>{
+    const m=k.startsWith('img:') && S.myDet.find(x=>'img:'+x.key===k), on=!S.layoutOff[k];
+    if(on) n++;
+    const r=document.createElement('div'); r.className='layrow'+(on?'':' off');
+    r.innerHTML=`<input type="checkbox" ${on?'checked':''}><span class="layic">${on?n:'–'}</span>${m?`<img src="${m.dataUrl}">`:'<span></span>'}<span class="layn">${m?'내 이미지 '+(S.myDet.indexOf(m)+1):LAY_NAME[k]}</span><button class="sm" data-a="up" ${idx?'':'disabled'}>▲</button><button class="sm" data-a="dn" ${idx<L.length-1?'':'disabled'}>▼</button>${m?'<button class="sm" data-a="del">빼기</button>':'<span></span>'}`;
+    r.querySelector('input').onchange=e=>{ if(e.target.checked) delete S.layoutOff[k]; else S.layoutOff[k]=true; relayout(); };
+    r.querySelector('[data-a=up]').onclick=()=>{ L.splice(idx,1); L.splice(idx-1,0,k); relayout(); };
+    r.querySelector('[data-a=dn]').onclick=()=>{ L.splice(idx,1); L.splice(idx+1,0,k); relayout(); };
+    const d=r.querySelector('[data-a=del]'); if(d) d.onclick=()=>{ S.myDet=S.myDet.filter(x=>x!==m); relayout(); };
+    box.appendChild(r);
+  });
+}
+let lyT=null;
+function relayout(){ drawLayout(); clearTimeout(lyT); lyT=setTimeout(async()=>{ if(S.info && S.out && S.out.size){ try{ await composePages(); showPages(); }catch(e){ log('오류: '+e.message,'err'); } } saveDraft(); },200); }
+/** 포토샵 이미지: 폭 1000px로 맞추고, 아주 길면 7000px씩 나눠서 저장 (폰 캔버스 한계) */
+async function importWide(file, W){
+  const url=URL.createObjectURL(file); const im=await loadImg(url); const s=W/im.naturalWidth, H=Math.round(im.naturalHeight*s), CH=7000, out=[];
+  for(let y=0;y<H;y+=CH){ const h=Math.min(CH,H-y), cv=document.createElement('canvas'); cv.width=W; cv.height=h; const g=cv.getContext('2d');
+    g.fillStyle='#fff'; g.fillRect(0,0,W,h); g.imageSmoothingQuality='high'; g.drawImage(im, 0, y/s, im.naturalWidth, h/s, 0, 0, W, h); out.push(cv.toDataURL('image/jpeg',0.92)); }
+  URL.revokeObjectURL(url); return out;
+}
+$('myDetFiles').onchange=e=>guard(async()=>{
+  const files=[...e.target.files]; e.target.value=''; let n=0;
+  for(const f of files){ for(const u of await importWide(f,1000)){ S.myDet.push({key:newId(), dataUrl:u, img:await loadImg(u)}); n++; } }
+  log(`내 상세 이미지 ${n}장 추가 — 디테일컷 위에 순서대로 들어가요 (▲▼로 변경)`,'ok'); relayout();
+});
+/** 켜진 순서대로 이어 붙여 상세페이지 완성본 (한 장 7600px 넘으면 다음 장, 이미지 사이에서만 나눔) */
+async function composePages(){
+  const segs=[];
+  const add=async url=>{ if(!url) return; const im=await loadImg(url); segs.push({im, h:Math.round(ih(im)*1000/iw(im))}); };
+  for(const k of layoutList()){
+    if(S.layoutOff[k]) continue;
+    if(k==='detail') await add(S.out.detail);
+    else if(k==='size') await add(S.out.size);
+    else { const m=S.myDet.find(x=>'img:'+x.key===k); if(m) segs.push({im:m.img, h:Math.round(ih(m.img)*1000/iw(m.img))}); }
+  }
+  const MAXH=7600, pages=[]; let cur=[], h=0;
+  segs.forEach(sg=>{ if(cur.length && h+sg.h>MAXH){ pages.push(cur); cur=[]; h=0; } cur.push(sg); h+=sg.h; });
+  if(cur.length) pages.push(cur);
+  S.out.pages=pages.map(pg=>{
+    const H=pg.reduce((a,sg)=>a+sg.h,0), cv=document.createElement('canvas'); cv.width=1000; cv.height=H; const g=cv.getContext('2d');
+    g.fillStyle='#fff'; g.fillRect(0,0,1000,H); g.imageSmoothingQuality='high'; let y=0; pg.forEach(sg=>{ g.drawImage(sg.im,0,y,1000,sg.h); y+=sg.h; });
+    let q=0.9, url=cv.toDataURL('image/jpeg',q);
+    while(url.length*0.75>4.8e6 && q>0.6){ q-=0.08; url=cv.toDataURL('image/jpeg',q); }
+    return url;
+  });
+  return S.out.pages;
+}
+function showPages(){
+  const fn=safeName(S.info.product_name), pages=S.out.pages||[];
+  $('pvDetailBox').innerHTML=pages.length?pages.map(u=>`<img src="${u}">`).join(''):'<p class="muted" style="padding:20px">구성에서 켜진 항목이 없어요.</p>';
+  $('dlDetailBox').innerHTML=pages.map((u,k)=>`<a class="muted" download="${fn}_상세페이지${pages.length>1?'_'+(k+1):''}.jpg" href="${u}">다운로드${pages.length>1?' '+(k+1):''}</a>`).join(' · ');
+  drawLayout();
+}
+
+/* ───────────── 배너: 내 사진 ───────────── */
+async function importBannerPhoto(file){
+  const url=URL.createObjectURL(file); const im=await loadImg(url); const s=Math.min(1,2400/Math.max(im.naturalWidth,im.naturalHeight));
+  const cv=document.createElement('canvas'); cv.width=Math.round(im.naturalWidth*s); cv.height=Math.round(im.naturalHeight*s); const g=cv.getContext('2d',{willReadFrequently:true});
+  g.drawImage(im,0,0,cv.width,cv.height); URL.revokeObjectURL(url);
+  const a=[[1,1],[cv.width-2,1],[1,cv.height-2],[cv.width-2,cv.height-2]].map(([x,y])=>g.getImageData(x,y,1,1).data[3]);
+  return a.some(v=>v<200) ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg',0.92);
+}
+function colorBannersMade(){ return (S.out&&S.out.banners||[]).some(b=>!/_내사진\d/.test(b.name)); }
+/** 투명 PNG(누끼)는 다른 배너와 같은 여백으로, 일반 사진은 배너 비율로 꽉 차게 */
+function renderMine(img){
+  const {B,cv,g}=bnCanvas(), W=iw(img), H=ih(img);
+  if(/^data:image\/png/.test(img.src||'')){ const b=alphaBBox(img), s=Math.min(B.bw/b.w, B.bh/b.h), w=b.w*s, h=b.h*s; g.drawImage(img,b.x,b.y,b.w,b.h,(B.W-w)/2,(B.H-h)/2,w,h); }
+  else { const s=Math.max(B.W/W, B.H/H), w=W*s, h=H*s; g.drawImage(img,(B.W-w)/2,(B.H-h)/2,w,h); }
+  return cv.toDataURL('image/jpeg',0.93);
+}
+function drawBnrMine(){
+  const box=$('bnrMineList'); if(!box) return; box.innerHTML='';
+  (S.bnrMine||[]).forEach((m,k)=>{ const d=document.createElement('div'); d.className='mine'; d.innerHTML=`<img src="${m.dataUrl}"><button class="sm">빼기</button>`;
+    d.querySelector('button').onclick=async()=>{ S.bnrMine.splice(k,1); drawBnrMine(); await makeBanners(false, !colorBannersMade()); saveDraft(); }; box.appendChild(d); });
+}
+$('bnrMineFiles').onchange=e=>guard(async()=>{
+  const files=[...e.target.files]; e.target.value='';
+  for(const f of files){ const u=await importBannerPhoto(f); S.bnrMine.push({key:newId(), dataUrl:u, img:await loadImg(u)}); }
+  drawBnrMine(); await makeBanners(false, !colorBannersMade()); saveDraft(true); log(`내 사진 배너 ${files.length}장 추가`,'ok');
+});
+
+/* ───────────── 크게 보기 ───────────── */
+document.addEventListener('click',e=>{
+  const im=e.target.closest('.slot img, .pv img, #bnrOut img, .mine img, .layrow img, #c24Rep img'); if(!im || im.closest('#c24Rep')) return;
+  $('viewImg').src=im.src; $('viewImg').classList.remove('zoom'); $('viewDl').href=im.src; show('viewer');
+});
+$('viewImg').onclick=e=>{ e.stopPropagation(); $('viewImg').classList.toggle('zoom'); };
+$('viewer').onclick=e=>{ if(e.target.id==='viewer'||e.target.id==='viewWrap') show('viewer',false); };
+$('viewClose').onclick=()=>show('viewer',false);
+
+/* ───────────── 이미지 캐시 (드라이브 파일 ID → 데이터): 같은 폰에서 다시 열면 바로 ───────────── */
+const ASSET_MAX=80;
+async function assetCacheGet(fid){ try{ return await DB.get('asset:'+fid); }catch(e){ return null; } }
+async function assetCachePut(fid, url){ try{ await DB.set('asset:'+fid, url); const idx=((await DB.get('assetIdx'))||[]).filter(x=>x!==fid); idx.unshift(fid); for(const old of idx.splice(ASSET_MAX)) await DB.del('asset:'+old); await DB.set('assetIdx', idx); }catch(e){} }
 
 /* ───────────── 렌더링 (EEUN 고정 양식) ───────────── */
 async function fontsReady(){
@@ -1550,14 +1687,15 @@ async function renderAll(){
   readForm(); log('상세페이지·사이즈표 만드는 중…');
   if(S.line&&S.line.img){ const have=(S.line.lines||[]).map(l=>l.label); if(msLabels().some(l=>!have.includes(l))) await measureLine(); }
   const hadBanners=(S.out.banners||[]).length>0;
-  S.out.detail=await renderDetail(); S.out.size=await renderSize(); if(hadBanners) await makeBanners(false);
+  const hadColor=colorBannersMade();
+  S.out.detail=await renderDetail(); S.out.size=await renderSize(); await composePages(); if(hadBanners||S.bnrMine.length) await makeBanners(false, !hadColor);
   showOut(); log('결과물 완료','ok'); saveDraft(true);
 }
 function showOut(){
   const fn=safeName(S.info.product_name);
-  $('pvDetail').src=S.out.detail; $('dlDetail').href=S.out.detail; $('dlDetail').download=fn+'_상세페이지.jpg';
+  showPages();
   $('pvSize').src=S.out.size; $('dlSize').href=S.out.size; $('dlSize').download=fn+'_사이즈표.png';
-  drawBannerUI(); showBanners(); show('secOut');
+  drawBannerUI(); drawBnrMine(); showBanners(); show('secOut');
   show('secUp'); c24Fill();
 }
 $('btnRender').onclick=()=>guard(renderAll);
@@ -1576,7 +1714,10 @@ async function saveAll(){
   const pad=k=>String(k).padStart(2,'0'); let n=1, jakjiUrl=''; const T=[];
   const up=(folder,name,mime,data)=>T.push(()=>run('api_uploadFile', S.code, folder, name, mime, data));
   const cp=(obj,folder,name,mime,data)=>T.push(async()=>{ if(obj&&obj.fid){ try{ return await run('api_copyFile', S.code, obj.fid, folder, name); }catch(e){ if(!data) throw e; } } return run('api_uploadFile', S.code, folder, name, mime, data); });
-  up(F.productId, fn+'_상세페이지.jpg','image/jpeg', b64(S.out.detail));
+  if(!(S.out.pages||[]).length) await composePages();
+  const pages=S.out.pages||[];
+  pages.forEach((u,k)=>up(F.productId, `${fn}_상세페이지${pages.length>1?'_'+(k+1):''}.jpg`,'image/jpeg', b64(u)));
+  up(F.productId, fn+'_디테일컷.jpg','image/jpeg', b64(S.out.detail));
   for(const [ci,c] of i.sale_colors.entries()) for(const v of VIEWS){
     const cut=(S.cuts[ci]||{})[v]; if(!cut||!cut.img) continue; const k=n++;
     if(labelsOnView(v)) up(F.shotsId, `${fn}_${pad(k)}_${c.name}_${VNAME[v]}_라벨.png`, 'image/png', b64(composeCut(cut.img,v).toDataURL('image/png')));
@@ -1667,101 +1808,6 @@ function drawC24Imgs(){
   if(C24.rep>=bns.length) C24.rep=0;
   $('c24Rep').innerHTML = bns.length ? '' : '<div class="muted" style="grid-column:1/-1">배너가 없어요 — 등록할 때 자동으로 만들어요 (위 "배너 만들기"로 미리 골라도 돼요)</div>';
   bns.forEach((b,k)=>{ const d=document.createElement('div'); d.className='it'+(k===C24.rep?' on':''); d.innerHTML=`<img src="${b.url}">${k===C24.rep?'<span class="ck">대표</span>':''}`; d.onclick=()=>{ C24.rep=k; drawC24Imgs(); }; $('c24Rep').appendChild(d); });
-  $('c24Models').innerHTML='';
-  S.images.forEach((im,k)=>{ const on=C24.models.has(im.key); const d=document.createElement('div'); d.className='it'+(on?' on':''); d.innerHTML=`<img src="${im.full.dataUrl}">${on?`<span class="ck">${[...C24.models].indexOf(im.key)+1}</span>`:''}`;
-    d.onclick=()=>{ on?C24.models.delete(im.key):C24.models.add(im.key); S.out.models=null; show('c24ModelPv',false); drawC24Imgs(); }; $('c24Models').appendChild(d); });
-}
-$('c24AddModel').onchange=async e=>{
-  for(const f of e.target.files){ try{ const p=await prepImage(f); p.key=newId(); p.model=true; S.images.push(p); C24.models.add(p.key); }catch(err){ log(f.name+' 불러오기 실패','err'); } }
-  e.target.value=''; S.out.models=null; show('c24ModelPv',false); drawThumbsRaw(); drawC24Imgs(); saveDraft();
-};
-$('c24ModelClear').onclick=()=>{ C24.models.clear(); S.out.models=null; show('c24ModelPv',false); drawC24Imgs(); };
-$('c24ModelBuild').onclick=()=>guard(async()=>{ const u=await buildModelSection(); if(!u) throw new Error('모델컷을 먼저 골라주세요 (누른 순서대로 배치돼요).'); });
-/* ── AI 모델컷: 기준 모델 사진 + 우리 제품컷 → 착용컷, 그 컷으로 포즈 바꾸기 ── */
-const MG_POSES=[
-  {k:'front', n:'정면 전신', p:null},
-  {k:'back', n:'뒷모습', p:'full-body back view, the model turned away from the camera so the back of the garment is clearly visible'},
-  {k:'walk', n:'걷는 사선', p:'full-body three-quarter view walking toward the camera, one leg forward, relaxed arms, slight head turn'},
-  {k:'upper', n:'상반신', p:'upper-body crop from mid-thigh up, one hand lightly touching the collar, garment details clearly visible'},
-  {k:'sit', n:'앉은 포즈', p:'crouching low with knees bent, full body in frame, forearms resting on the knees'}
-];
-const MG={ lib:null, sel:lsGet('mg_sel')||null, poses:new Set(['front','back','walk','upper']) };
-async function mgLoad(){ try{ MG.lib=await run('api_modelLib', S.code); }catch(e){ MG.lib=[]; log('기준 모델 사진 불러오기 실패: '+e.message,'err'); } drawMg(); }
-function drawMg(){
-  const lib=$('mgLib'); lib.innerHTML='';
-  if(MG.lib && !MG.lib.some(x=>x.id===MG.sel)) MG.sel=MG.lib[0]?MG.lib[0].id:null;
-  (MG.lib||[]).forEach(m=>{ const d=document.createElement('div'); d.className='it'+(m.id===MG.sel?' on':''); d.innerHTML=`<img src="${m.thumb}">${m.id===MG.sel?'<span class="ck">기준</span>':''}`; d.onclick=()=>{ MG.sel=m.id; lsSet('mg_sel',m.id); drawMg(); }; lib.appendChild(d); });
-  if(MG.lib && !MG.lib.length) lib.innerHTML='<div class="muted" style="grid-column:1/-1">기준 모델 사진이 없어요 — "＋ 기준 모델 추가"로 평소 쓰던 모델 사진(전신·깔끔한 배경)을 올려주세요</div>';
-  if(S.info){ const cs=$('mgColor'), v=cs.value; cs.innerHTML=S.info.sale_colors.map((c,i)=>`<option value="${i}">${esc(c.name||('컬러'+(i+1)))}</option>`).join(''); if(v && cs.options[v]) cs.value=v; }
-  const ps=$('mgPoses'); ps.innerHTML='';
-  MG_POSES.forEach(p=>{ const on=p.k==='front'||MG.poses.has(p.k); const b=document.createElement('button'); b.className='sm chip'+(on?' on':''); b.textContent=(on?'✓ ':'')+p.n;
-    b.onclick=()=>{ if(p.k==='front') return; MG.poses.has(p.k)?MG.poses.delete(p.k):MG.poses.add(p.k); drawMg(); }; ps.appendChild(b); });
-  $('mgGo').textContent=`모델컷 생성 (${1+MG_POSES.filter(p=>p.k!=='front'&&MG.poses.has(p.k)).length}장)`;
-}
-$('mgAdd').onchange=e=>guard(async()=>{
-  const fs=[...e.target.files]; e.target.value='';
-  for(const f of fs){ const p=await prepImage(f); const r=await run('api_modelLibAdd', S.code, f.name.replace(/\.[^.]+$/,''), p.full.dataUrl.split(',')[1]); MG.sel=r.id; lsSet('mg_sel',r.id); }
-  log(`기준 모델 사진 ${fs.length}장 추가됨`,'ok'); await mgLoad();
-});
-$('mgDel').onclick=()=>guard(async()=>{ if(!MG.sel) return; if(!confirm('고른 기준 모델 사진을 지울까요? (드라이브 휴지통으로 가요)')) return; await run('api_modelLibDel', S.code, MG.sel); MG.sel=null; await mgLoad(); });
-async function mgAddResult(r, label){
-  const im=await loadImg('data:'+r.mime+';base64,'+r.b64);
-  const toJ=(max,q)=>{ const s=Math.min(1,max/Math.max(iw(im),ih(im))); const cv=document.createElement('canvas'); cv.width=Math.round(iw(im)*s); cv.height=Math.round(ih(im)*s); cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return cv; };
-  const fc=toJ(2400), full=fc.toDataURL('image/jpeg',.93), api=toJ(1280).toDataURL('image/jpeg',.88);
-  const p={ name:`모델_${label}.jpg`, key:newId(), fid:null, model:true, full:{dataUrl:full, w:fc.width, h:fc.height, img:await loadImg(full)}, api:{mime:'image/jpeg', b64:api.split(',')[1]} };
-  S.images.push(p); C24.models.add(p.key); S.out.models=null; show('c24ModelPv',false);
-  drawThumbsRaw(); drawC24Imgs(); saveDraft(true);
-  return p;
-}
-$('mgGo').onclick=()=>guard(async()=>{
-  readForm(); if(!S.info) throw new Error('먼저 상품을 분석해 주세요.');
-  if(!MG.sel) throw new Error('기준 모델 사진을 골라주세요 (없으면 "＋ 기준 모델 추가").');
-  const ci=Number($('mgColor').value||0), c=S.info.sale_colors[ci]||{}, cut=S.cuts[ci]||{};
-  const garment=[];
-  if(cut.front&&cut.front.img) garment.push(jpegOf(cut.front.img,1024,'#fff'));
-  if(cut.side&&cut.side.img) garment.push(jpegOf(cut.side.img,1024,'#fff'));
-  refIndices().slice(0, garment.length?1:3).forEach(i=>garment.push(S.images[i].api));
-  if(!garment.length) throw new Error('옷 사진이 없어요 — 제품컷을 먼저 만들거나 사진을 넣어주세요.');
-  const common={ garment, colorEn:c.en||c.name, hex:c.hex, kind:garmentKind(), hint:neutralHint(S.info.ghost_prompt||S.info.product_name), quality:$('mgQ').value };
-  const cname=c.name||'컬러';
-  log(`${cname} 모델컷: 기준 모델에 옷 입히는 중… (1~3분)`);
-  const r0=await genImage('api_generateModel', {...common, mode:'swap', baseId:MG.sel}, `${cname} 모델컷 정면`);
-  const base=await mgAddResult(r0, `${cname}_정면`);
-  log(`${cname} 모델컷 정면 완료`,'ok');
-  const rest=MG_POSES.filter(p=>p.k!=='front'&&MG.poses.has(p.k));
-  await pool(rest.map(p=>async()=>{ log(`${cname} 모델컷 ${p.n} 만드는 중…`);
-    const r=await genImage('api_generateModel', {...common, garment:garment.slice(0,2), mode:'pose', pose:p.p, base:base.api}, `${cname} 모델컷 ${p.n}`);
-    await mgAddResult(r, `${cname}_${p.n}`); log(`${cname} 모델컷 ${p.n} 완료`,'ok'); }), 3, '모델컷 일부가 실패했어요 — 다시 눌러 주세요');
-  log('모델컷 완료 — 아래에서 순서대로 골라 "모델 섹션 미리보기"','ok');
-});
-/** 이은 상세 모델 섹션 (르딘 상세 양식): 1100px, 첫 장 풀블리드+문구·로고, 2·3번 나란히, 이후 풀/여백 번갈아 */
-async function buildModelSection(){
-  const ims=[...C24.models].map(k=>S.images.find(x=>x.key===k)).filter(Boolean).map(x=>x.full.img);
-  if(!ims.length){ S.out.models=null; show('c24ModelPv',false); return null; }
-  await fontsReady();
-  const W=1100, GAP=70, TOP=60, cap=h=>Math.min(h,1650);
-  const blocks=[]; let k=0;
-  blocks.push({type:'hero', img:ims[k], w:W, h:cap(Math.round(W*ih(ims[k])/iw(ims[k])))}); k++;
-  if(ims.length-k>=2){ const w=(W-12)/2; blocks.push({type:'pair', imgs:[ims[k],ims[k+1]], w, h:Math.round(w*4/3)}); k+=2; }
-  let inset=false;
-  for(;k<ims.length;k++){ const w=inset?W-180:W; blocks.push({type:'one', img:ims[k], x:inset?90:0, w, h:cap(Math.round(w*ih(ims[k])/iw(ims[k])))}); inset=!inset; }
-  const H=TOP+blocks.reduce((s,b)=>s+b.h,0)+GAP*(blocks.length-1)+TOP;
-  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
-  g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.imageSmoothingQuality='high';
-  const cover=(img,x,y,w,h)=>{ const s=Math.max(w/iw(img),h/ih(img)), sw=w/s, sh=h/s; g.drawImage(img,(iw(img)-sw)/2,(ih(img)-sh)/2,sw,sh,x,y,w,h); };
-  let y=TOP;
-  for(const b of blocks){
-    if(b.type==='hero'){ cover(b.img,0,y,W,b.h);
-      g.fillStyle='rgba(255,255,255,.92)'; g.textBaseline='top';
-      g.font='500 15px Inter, "Noto Sans KR", sans-serif'; g.textAlign='left'; g.fillText('A CONNECTION TO YOUR SHINING TODAY.',28,y+30);
-      g.font='400 58px "Times New Roman", Georgia, serif'; g.textAlign='center'; g.fillText('EEUN',W/2,y+64); g.textAlign='left'; }
-    else if(b.type==='pair'){ cover(b.imgs[0],0,y,b.w,b.h); cover(b.imgs[1],W-b.w,y,b.w,b.h); }
-    else cover(b.img,b.x,y,b.w,b.h);
-    y+=b.h+GAP;
-  }
-  S.out.models=cv.toDataURL('image/jpeg',.9);
-  $('c24ModelImg').src=S.out.models; show('c24ModelPv');
-  return S.out.models;
 }
 /** 결과물이 나오면 업로드 칸을 지금 상품 정보로 채움 (상품이 바뀔 때만) */
 function c24Fill(){
@@ -1777,13 +1823,11 @@ function c24Fill(){
     $('c24SupName').value=(i.supplier&&(i.supplier.url||i.supplier.name))||'';
     $('c24Colors').value=i.sale_colors.map(x=>x.name).filter(Boolean).join(', ');
     $('c24Sizes').value=String(i.sale_size||'FREE').split(/[\/,]/).map(s=>s.trim()).filter(Boolean).join(', ');
-    C24.models=new Set(S.images.filter(x=>x.model).map(x=>x.key)); C24.rep=0; // 캡처 원본은 기본 제외, 추가한 모델컷만 선택
-    S.out.models=null; show('c24ModelPv',false);
+    C24.rep=0;
     $('c24Links').innerHTML = S.c24 ? c24LinksHtml(S.c24.product_no) : '';
   }
   drawC24Imgs();
   if(!C24.st) c24Status(); else show('c24Form', !!C24.st.connected);
-  if(!MG.lib) mgLoad(); else drawMg();
 }
 function c24LinksHtml(no){
   return `<a href="${C24_SHOP}/disp/admin/shop1/product/productmodify?product_no=${no}" target="_blank">🛠 카페24 관리자에서 열기 (${no})</a><a href="${C24_FRONT}/product/detail.html?product_no=${no}" target="_blank">🛍 쇼핑몰 상품 페이지</a><a href="https://mp.cafe24.com/mp/product/front/detail?product_no=${no}" target="_blank">🔁 마켓플러스 (에이블리·큐텐 전송)</a>`;
@@ -1807,12 +1851,11 @@ async function c24Upload(){
   if(S.c24 && S.c24.product_no && !confirm(`이 작업은 이미 카페24에 등록했어요 (상품번호 ${S.c24.product_no}).\n새 상품으로 한 번 더 등록할까요?`)) return;
   const split=v=>v.split(',').map(s=>s.trim()).filter(Boolean);
   const options=[['색상',split($('c24Colors').value)],['사이즈',split($('c24Sizes').value)]].filter(o=>o[1].length).map(([n,v])=>({name:n, value:v}));
-  // 상세 이미지: 모델컷 → 상세페이지(DETAIL POINT·정보) → 사이즈표 (사이즈는 맨 아래)
+  // 상세 이미지: "상세페이지 구성" 순서 그대로 (내 이미지 → 디테일컷 → 사이즈표)
   const parts=[];
-  const ms=S.out.models || await buildModelSection();
-  if(ms) parts.push(...await c24Slices(ms, 2400));
-  parts.push(...await c24Slices(S.out.detail, 2400));
-  parts.push(...await c24Slices(S.out.size, 2400));
+  if(!(S.out.pages||[]).length) await composePages();
+  for(const pg of S.out.pages||[]) parts.push(...await c24Slices(pg, 2400));
+  if(!parts.length) throw new Error('상세페이지 구성에서 켜진 항목이 없어요.');
   log(`카페24 상세 이미지 올리는 중… (${parts.length}장)`);
   const paths=[];
   for(const [k,b64] of parts.entries()){ paths.push(await run('api_c24UploadImage', S.code, b64)); if((k+1)%3===0||k===parts.length-1) log(`상세 이미지 ${k+1}/${parts.length}`); }
