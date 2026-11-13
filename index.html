@@ -14,7 +14,7 @@
 <title>EEUN 상품 등록</title>
 <script src="config.js?v=2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Inter:wght@800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
   :root { --ink:#111; --sub:#6b6b6b; --line:#e3e3e3; --panel:#f4f4f4; --accent:#111; --ok:#2f7a45; --err:#b3261e; }
   * { box-sizing:border-box; }
@@ -198,6 +198,7 @@
   <section id="secReview" class="hidden">
     <h2><span class="n">2</span>검토·수정</h2>
     <label>상품명</label><input type="text" id="f_name">
+    <label>영문 상품명 <span class="muted">(상세 이미지 맨 아래 · 비우면 이름 줄 없이 들어가요)</span></label><input type="text" id="f_nameEn" placeholder="예: SUEDE FUR-TRIM SHORT MUSTANG">
     <div class="row">
       <div><label>유형</label><select id="f_type"><option>1688</option><option>동대문</option></select></div>
       <div><label>판매 사이즈</label><input type="text" id="f_saleSize"></div>
@@ -262,7 +263,7 @@
     <div class="cutrow" style="margin-top:12px"><div class="cn">사이즈표<br>도식화</div><div class="slot lineslot" id="lineSlot"></div></div>
     <div class="chk"><input type="checkbox" id="hq"><span>제품컷 고화질 (크레딧 더 씀 · 기본은 가성비 화질)</span></div>
     <div class="chk"><input type="checkbox" id="withBack"><span>뒷면 컷도 만들기 (뒷면 배너용 · 컬러당 1장 더)</span></div>
-    <div class="chk"><input type="checkbox" id="useCrops" checked><span>디테일 클로즈업 2장 생성 (AI로 새로 만듦 · '부위'로 참고할 위치 지정)</span></div>
+    <div class="chk"><input type="checkbox" id="useCrops"><span>디테일 클로즈업 2장 생성해서 상세에 넣기 (AI로 새로 만듦 · '부위'로 위치 지정) — 끄면 제품컷 + 사이즈표만 (기본)</span></div>
     <div class="crops" id="crops"></div>
   </section>
 
@@ -701,7 +702,7 @@ async function restoreDraft(d, id){
       if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; $('hq').checked=!!d.form.hq; $('withBack').checked=!!d.form.withBack; show('jakjiBox',!!d.form.jakji); updatePrice(); }
       if(d.bnr) S.bnr={...S.bnr, ...d.bnr};
       if(S.info.made){ drawLabelLib(); drawLabelSel(); }
-      $('useCrops').checked=true;
+      $('useCrops').checked=!!d.useCrops;
       if(!S.crops.length) S.crops=defaultCrops(S.info);
       show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
       if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); await composePages(); if(d.bnrMade||S.bnrMine.length) await makeBanners(false, d.bnrColorMade===false); showOut(); }
@@ -723,7 +724,7 @@ async function analyze(){
   const info = await run('api_analyze', S.code, text, S.images.map(x=>x.api));
   normalizeInfo(info); fixPriceRules(info, text);
   S.info = info; S.cuts = {}; S.out = {}; S.line = null;
-  S.crops = defaultCrops(info); $('useCrops').checked=true;
+  S.crops = defaultCrops(info); $('useCrops').checked=false;
   fillForm(); show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
   log('분석 완료: '+info.product_name, 'ok');
   saveDraft(true);
@@ -752,7 +753,7 @@ $('btnAnalyze').onclick = ()=>guard(analyze);
 /* ───────────── 검토 폼 ───────────── */
 function fillForm(){
   const i=S.info, fx=S.init.fx.rate;
-  $('f_name').value=i.product_name||''; $('f_type').value=i.type; $('f_saleSize').value=i.sale_size;
+  $('f_name').value=i.product_name||''; $('f_nameEn').value=i.product_name_en||''; $('f_type').value=i.type; $('f_saleSize').value=i.sale_size;
   $('f_made').checked=!!i.made; $('f_jakji').checked=!!i.made; $('f_jakjiMemo').value=i.jakjiMemo||'';
   show('labelsBox', !!i.made); show('jakjiBox', !!i.made);
   if(i.made){ drawLabelLib(); drawLabelSel(); }
@@ -768,7 +769,7 @@ function fillForm(){
 }
 function readForm(){
   const i=S.info;
-  i.product_name=$('f_name').value.trim(); i.type=$('f_type').value; i.sale_size=$('f_saleSize').value.trim()||'FREE';
+  i.product_name=$('f_name').value.trim(); i.product_name_en=$('f_nameEn').value.trim(); i.type=$('f_type').value; i.sale_size=$('f_saleSize').value.trim()||'FREE';
   i.made=$('f_made').checked;
   if(i.made && !/^\[ EEUN MADE \]/.test(i.product_name)) { i.product_name='[ EEUN MADE ] '+i.product_name.replace(/^\[.*?\]\s*/,''); $('f_name').value=i.product_name; }
   if(S.labels.length) i.labels=S.labels.map(L=>({label:L.name, position:L.pos||'위치 확인 필요', method:L.method, wcm:Math.round(L.wcm*10)/10, memo:`${L.method} · 실물 가로 ${L.wcm.toFixed(1)}cm`}));
@@ -1100,7 +1101,7 @@ function paintLineEd(){
     paintLineEd(); });
   ['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>drag=null));
 })();
-$('lineOk').onclick=()=>{ show('lineM',false); saveDraft(true); if(S.out&&S.out.size) guard(async()=>{ S.out.size=await renderSize(); showOut(); }); };
+$('lineOk').onclick=()=>{ show('lineM',false); saveDraft(true); if(S.out&&S.out.size) guard(async()=>{ S.out.size=await renderSize(); await composePages(); showOut(); }); };
 $('lineRe').onclick=async()=>{ $('lineRe').disabled=true; try{ await measureLine(); paintLineEd(); }catch(e){ log('오류: '+e.message,'err'); } $('lineRe').disabled=false; };
 $('btnCuts').onclick=()=>guard(async()=>{ readForm(); show('secCuts'); await genAllCuts(); });
 
@@ -1504,7 +1505,7 @@ async function renderJakjiCard(){
 
 /* ───────────── 상세페이지 구성: 내 이미지(포토샵) 1·2… → 디테일컷 → 사이즈표 ───────────── */
 S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[];
-const LAY_NAME={detail:'디테일컷 (제품컷·클로즈업·정보)', size:'사이즈표'};
+const LAY_NAME={detail:'제품컷 (DETAIL POINT · 클로즈업 켜면 포함)', size:'사이즈표 (SIZE GUIDE)'};
 function layoutList(){
   if(!Array.isArray(S.layout)) S.layout=['detail','size'];
   S.layout=S.layout.filter(k=>LAY_NAME[k] || (k.startsWith('img:') && S.myDet.some(m=>'img:'+m.key===k)));
@@ -1549,9 +1550,10 @@ async function composePages(){
   for(const k of layoutList()){
     if(S.layoutOff[k]) continue;
     if(k==='detail') await add(S.out.detail);
-    else if(k==='size') await add(S.out.size);
+    else if(k==='size') await add(S.out.sizeBlock||S.out.size);
     else { const m=S.myDet.find(x=>'img:'+x.key===k); if(m) segs.push({im:m.img, h:Math.round(ih(m.img)*1000/iw(m.img))}); }
   }
+  if(S.out.footer) await add(S.out.footer);   // 맨 아래 상품 정보 + 로고
   const MAXH=7600, pages=[]; let cur=[], h=0;
   segs.forEach(sg=>{ if(cur.length && h+sg.h>MAXH){ pages.push(cur); cur=[]; h=0; } cur.push(sg); h+=sg.h; });
   if(cur.length) pages.push(cur);
@@ -1627,7 +1629,7 @@ async function assetCachePut(fid, url){ try{ await DB.set('asset:'+fid, url); co
 
 /* ───────────── 렌더링 (EEUN 고정 양식) ───────────── */
 async function fontsReady(){
-  const specs=['800 28px Inter','700 22px "Noto Sans KR"','400 17px "Noto Sans KR"','500 17px "Noto Sans KR"','900 40px "Noto Sans KR"'];
+  const specs=['400 16px Arimo','700 24px Arimo','800 28px Inter','700 22px "Noto Sans KR"','400 17px "Noto Sans KR"','500 17px "Noto Sans KR"','900 40px "Noto Sans KR"'];
   try{ await Promise.race([Promise.all(specs.map(s=>document.fonts.load(s,'가A'))), new Promise(r=>setTimeout(r,4000))]); }catch(e){}
 }
 const BBOX=new WeakMap();
@@ -1655,83 +1657,161 @@ function productBox(img, maxW, maxH){
   g.imageSmoothingQuality='high'; g.drawImage(img, b.x,b.y,b.w,b.h, x,y,w,h);
   return cv;
 }
-async function renderDetail(){
-  const i=S.info; await fontsReady();
-  const boxes=[];
-  i.sale_colors.forEach((c,ci)=>{
-    const cut=S.cuts[ci]||{};
-    boxes.push({cv:productBox(cut.front&&composeFront(cut.front.img), 640, 770), dot:c.hex});
-    if(cut.side&&cut.side.img) boxes.push({cv:productBox(composeCut(cut.side.img,'side'), 560, 790)});
-  });
-  if($('useCrops').checked) S.crops.forEach(c=>{ const cv=cropCanvas(c); if(cv) boxes.push({cv}); });
-  const TOP=210, GAP=80, X0=90, LX=115;
-  const textTop=TOP+boxes.length*BOX.h+(boxes.length-1)*GAP+200;
-  const cv=document.createElement('canvas'); cv.width=1000; cv.height=textTop+1200; const g=cv.getContext('2d');
-  g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height); g.textBaseline='top';
-  g.fillStyle='#111'; g.font='800 28px Inter, "Noto Sans KR", sans-serif'; g.textAlign='center'; g.fillText('DETAIL POINT.',500,108); g.textAlign='left';
-  let y=TOP;
-  boxes.forEach(b=>{ g.drawImage(b.cv,X0,y); if(b.dot){ g.fillStyle=b.dot; g.beginPath(); g.arc(X0+50,y+52,22,0,Math.PI*2); g.fill(); g.strokeStyle='rgba(0,0,0,.08)'; g.lineWidth=1; g.stroke(); } y+=BOX.h+GAP; });
-  y=textTop;
-  const H1='700 22px "Noto Sans KR", sans-serif', B='400 17px "Noto Sans KR", sans-serif', BM='500 17px "Noto Sans KR", sans-serif';
-  const line=(t,f,col,gap)=>{ g.font=f; g.fillStyle=col; g.fillText(t,LX,y); y+=gap; };
-  line('소재',H1,'#111',44); line(i.material_customer||'-',B,'#282828',50);
-  line('컬러',H1,'#111',44); line(i.sale_colors.map(c=>c.name).join(' / '),B,'#282828',50);
-  line('사이즈 (CM)',H1,'#111',44);
-  line('(단면 기준 / 측정 위치에 따라 ±1~2cm 오차가 있을 수 있습니다)',B,'#5a5a5a',40);
-  line('[SIZE]',BM,'#282828',30);
-  const ms=(i.measurements||[]).filter(m=>m.label&&m.value).map(m=>`${m.label} ${m.value}`).join(' / ');
-  line(`- ${i.sale_size}${ms?' : '+ms:''}`,B,'#282828',ms?54:30);
-  if(!ms) line('상세 실측은 확인 후 안내 예정입니다.',B,'#5a5a5a',54);
-  const bulY=y;
-  (i.features||[]).slice(0,5).forEach(f=>line('- '+f,B,'#282828',30));
-  const logo=await loadImg(S.init.logos.archive); const lw=180, lh=logo.naturalHeight*lw/logo.naturalWidth;
-  g.drawImage(logo,912-lw,bulY+4,lw,lh);
-  const H=Math.max(y, bulY+lh+10)+120;
-  const outCv=document.createElement('canvas'); outCv.width=1000; outCv.height=H; outCv.getContext('2d').drawImage(cv,0,0);
-  let q=0.9, url=outCv.toDataURL('image/jpeg',q);
-  while(url.length*0.75>4.8e6 && q>0.6){ q-=0.08; url=outCv.toDataURL('image/jpeg',q); }
-  return url;
+/* ───────────── 사이트 상세 양식 — 피그마 '08 Site Detail Template'과 같은 숫자 (860 기준 → 1000px로 출력) ─────────────
+   A 양식(지금): DETAIL POINT. → 컬러별 정면(컬러 점)·사선 제품컷 → SIZE GUIDE → 상품 정보 + eeun archive 로고
+   B 양식(나중): 클로즈업 체크하면 사선컷 다음에 860×1000 클로즈업이 들어감
+   글씨는 전부 영문 대문자(Arimo = 헬베티카 대체), 한글 항목은 영어로 바꿔서 넣음 */
+const TPL={ K:1000/860, MX:70, BOX_W:720, BOX_H:900, BOX_BG:'#F0F0F0', DOT:36, DOT_OFF:24, CLOSE_W:860, CLOSE_H:1000,
+  TITLE_Y:96, FIRST:170, GAP:40, GAP_CLOSE:80, GAP_SIZE:180, GAP_INFO:140, PAD_BOTTOM:160, SIZE_H:960, ROW:56,
+  SG:{title:0, sub:40, rule:86, fx:70, fy:120, fw:720, fh:560, cap:700, ttop:750, head:774, val:812, tbot:868, n1:896, n2:920},
+  INK:'#111111', GREY:'#8D9298', RULE:'#D5D8DB',
+  FONT:'Arimo, "Helvetica Neue", Helvetica, Arial, "Noto Sans KR", sans-serif',
+  LOGO_INK:'assets/logo_ink.png', LOGO_EEUN:'assets/logo_eeun.png' };
+/** 헬베티카 대문자 글씨 (y = 글 상자 위쪽, 피그마와 같은 줄 간격·자간). 너비를 돌려줌 */
+function capsText(g, s, x, y, size, o={}){
+  s=String(s==null?'':s).toUpperCase(); const bold=!!o.bold, lh=bold?1.4:1.5, tr=(o.tr!=null?o.tr:(bold?0.04:(size<=12?0.08:0.05)))*size;
+  g.save(); g.font=`${bold?700:400} ${size}px ${TPL.FONT}`; g.fillStyle=o.color||TPL.INK; g.textBaseline='alphabetic'; g.textAlign='left';
+  const ch=[...s], ws=ch.map(c=>g.measureText(c).width), w=ws.reduce((a,b)=>a+b,0)+tr*ch.length;
+  let X=x; if(o.anchor==='center') X-=w/2; else if(o.anchor==='right') X-=w;
+  if(o.measure){ g.restore(); return w; }
+  const base=y+(lh-1.117)/2*size+0.905*size; let cx=X;
+  ch.forEach((c,k)=>{ g.fillText(c,cx,base); cx+=ws[k]+tr; });
+  g.restore(); return w;
 }
-async function renderSize(){
-  const i=S.info; await fontsReady();
-  const W=1600,H=2000; const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
-  g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.textBaseline='top';
-  const DK='#222', GR='#6e6e6e', LN='#cdcdcd';
-  g.fillStyle=DK; g.font='900 40px "Noto Sans KR", sans-serif'; g.fillText('DETAIL',110,150);
-  g.fillStyle=GR; g.font='400 28px "Noto Sans KR", sans-serif'; g.fillText('사이즈 안내',110,222);
-  const star=await loadImg(S.init.logos.star); const sw=190, sh=star.naturalHeight*sw/star.naturalWidth; g.drawImage(star,1490-sw,120,sw,sh);
-  const hl=(yy,c)=>{ g.fillStyle=c; g.fillRect(110,yy,1380,2); };
-  hl(300,LN);
+/* 한글 → 영문 (치수 항목·컬러·소재) */
+const EN_LABEL={'어깨':'SHOULDER','어깨너비':'SHOULDER','어깨단면':'SHOULDER','가슴':'CHEST','가슴단면':'CHEST','가슴둘레':'CHEST','품':'CHEST',
+  '밑단':'HEM','밑단단면':'HEM','밑단둘레':'HEM','밑단폭':'HEM','암홀':'ARMHOLE','팔길이':'SLEEVE','소매':'SLEEVE','소매길이':'SLEEVE','소매기장':'SLEEVE','화장':'SLEEVE',
+  '소매밑단':'CUFF','소매단':'CUFF','소매부리':'CUFF','소매통':'SLEEVE WIDTH','총장':'LENGTH','기장':'LENGTH','총기장':'LENGTH','전체기장':'LENGTH','스커트기장':'LENGTH',
+  '허리':'WAIST','허리단면':'WAIST','허리둘레':'WAIST','밑위':'RISE','앞밑위':'FRONT RISE','뒷밑위':'BACK RISE','허벅지':'THIGH','허벅지단면':'THIGH',
+  '힙':'HIP','엉덩이':'HIP','엉덩이단면':'HIP','힙단면':'HIP','목둘레':'NECK','넥':'NECK','후드':'HOOD','후드높이':'HOOD','인심':'INSEAM','안기장':'INSEAM','종아리':'CALF',
+  '가로':'WIDTH','세로':'HEIGHT','폭':'WIDTH','높이':'HEIGHT','깊이':'DEPTH','끈길이':'STRAP','스트랩':'STRAP','굽':'HEEL','굽높이':'HEEL'};
+const enLabel=l=>{ const k=String(l||'').replace(/\s+/g,''); return EN_LABEL[k] || k.toUpperCase(); };
+const EN_COLOR=[['오프화이트','OFF WHITE'],['아이보리','IVORY'],['화이트','WHITE'],['흰색','WHITE'],['크림','CREAM'],['오트밀','OATMEAL'],['베이지','BEIGE'],['샌드','SAND'],
+  ['카멜','CAMEL'],['브라운','BROWN'],['갈색','BROWN'],['모카','MOCHA'],['초코','CHOCOLATE'],['카키','KHAKI'],['올리브','OLIVE'],['그린','GREEN'],['민트','MINT'],
+  ['네이비','NAVY'],['스카이블루','SKY BLUE'],['스카이','SKY BLUE'],['소라','LIGHT BLUE'],['블루','BLUE'],['연청','LIGHT DENIM'],['중청','MID DENIM'],['진청','DARK DENIM'],['흑청','BLACK DENIM'],['데님','DENIM'],
+  ['차콜','CHARCOAL'],['먹색','CHARCOAL'],['멜란지','MELANGE'],['연그레이','LIGHT GREY'],['진그레이','DARK GREY'],['그레이','GREY'],['회색','GREY'],['실버','SILVER'],['골드','GOLD'],
+  ['블랙','BLACK'],['검정','BLACK'],['레드','RED'],['버건디','BURGUNDY'],['와인','WINE'],['핑크','PINK'],['라벤더','LAVENDER'],['퍼플','PURPLE'],['보라','PURPLE'],
+  ['옐로우','YELLOW'],['노랑','YELLOW'],['머스타드','MUSTARD'],['오렌지','ORANGE'],['라이트','LIGHT '],['다크','DARK '],['딥','DEEP ']];
+const EN_MAT=[['폴리에스테르','POLYESTER'],['폴리에스터','POLYESTER'],['폴리우레탄','POLYURETHANE'],['나일론','NYLON'],['아크릴','ACRYLIC'],['레이온','RAYON'],['비스코스','VISCOSE'],
+  ['모달','MODAL'],['텐셀','TENCEL'],['라이오셀','LYOCELL'],['스판덱스','SPANDEX'],['엘라스테인','ELASTANE'],['스판','SPANDEX'],['코튼','COTTON'],['린넨','LINEN'],['양모','WOOL'],
+  ['캐시미어','CASHMERE'],['알파카','ALPACA'],['모헤어','MOHAIR'],['앙고라','ANGORA'],['실크','SILK'],['아세테이트','ACETATE'],['인조 가죽','FAUX LEATHER'],['인조가죽','FAUX LEATHER'],
+  ['인조 퍼','FAUX FUR'],['인조퍼','FAUX FUR'],['페이크퍼','FAUX FUR'],['소가죽','COWHIDE'],['양가죽','LAMBSKIN'],['가죽','LEATHER'],['스웨이드','SUEDE'],['기모','BRUSHED'],
+  ['겉감','SHELL'],['안감','LINING'],['충전재','FILLING'],['배색','TRIM'],['폴리','POLYESTER'],['기타','OTHER'],['울','WOOL'],['면','COTTON'],['마','LINEN'],['견','SILK']];
+function toEn(s, table){
+  let t=String(s||'');
+  table.forEach(([ko,en])=>{ if(ko.length===1) t=t.replace(new RegExp('(^|[^가-힣])'+ko+'(?=[^가-힣]|$)','g'),'$1'+en); else t=t.split(ko).join(en); });
+  t=t.replace(/^연(?=[A-Z])/,'LIGHT ').replace(/^진(?=[A-Z])/,'DARK ');
+  return t.replace(/\s{2,}/g,' ').trim().toUpperCase();
+}
+const enColor=s=>toEn(s,EN_COLOR), enMat=s=>toEn(s,EN_MAT);
+/** 사이즈표 항목 (입력 실측 → 없으면 기본 항목에 —) */
+function sizeItemsT(){
+  const i=S.info, ms=(i.measurements||[]).filter(m=>m.label);
+  const items=ms.length?ms.map(m=>({label:enLabel(m.label), value:String(m.value==null?'':m.value).trim()||'—'})):defaultLabels().map(l=>({label:enLabel(l), value:'—'}));
+  return items;
+}
+/** 제품컷 상자 720×900 (#F0F0F0) — 기존 비율 그대로 가운데 */
+function drawCutBoxT(g, img, x, y, view){
+  const T=TPL; g.fillStyle=T.BOX_BG; g.fillRect(x,y,T.BOX_W,T.BOX_H);
+  if(!img){ capsText(g,'NO PRODUCT CUT',x+T.BOX_W/2,y+T.BOX_H/2-11,15,{color:T.GREY,anchor:'center'}); return; }
+  const b=alphaBBox(img), mw=T.BOX_W*(view==='side'?0.68:0.78), mh=T.BOX_H*(view==='side'?0.86:0.84);
+  const s=Math.min(mw/b.w, mh/b.h), w=b.w*s, h=b.h*s, px=x+(T.BOX_W-w)/2, py=y+(T.BOX_H-h)/2+10;
+  const m=g.getTransform();   // 그림자는 화면 좌표로 (확대 영향 안 받게)
+  g.save(); g.setTransform(1,0,0,1,0,0); const K=m.a, OFF=g.canvas.height+2000;
+  g.shadowColor='rgba(0,0,0,0.20)'; g.shadowBlur=26*K; g.shadowOffsetY=OFF; g.fillStyle='#000';
+  g.beginPath(); g.ellipse((x+T.BOX_W/2)*K+m.e, (py+h-2)*K+m.f-OFF, w*0.32*K, 14*K, 0, 0, Math.PI*2); g.fill(); g.restore();
+  g.imageSmoothingQuality='high'; g.drawImage(img, b.x,b.y,b.w,b.h, px,py,w,h);
+}
+/** 치수선 (가는 선 + 작은 화살촉 + 흰 바탕 영문 라벨) */
+function drawDimT(g, l, map, ext){
+  const [x1,y1]=map(l.x1,l.y1), [x2,y2]=map(l.x2,l.y2), a=Math.atan2(y2-y1,x2-x1), ah=7;
+  g.save(); g.lineCap='round'; g.lineJoin='round';
+  if(ext && l.len){ g.strokeStyle='#C9C9C9'; g.lineWidth=1; g.beginPath(); g.moveTo(ext.x1,y1); g.lineTo(x1+8,y1); g.moveTo(ext.x1,y2); g.lineTo(x2+8,y2); g.stroke(); }
+  g.strokeStyle='#555555'; g.lineWidth=1.2; g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2);
+  [[x2,y2,a],[x1,y1,a+Math.PI]].forEach(([x,y,b])=>{ g.moveTo(x-ah*Math.cos(b-0.45),y-ah*Math.sin(b-0.45)); g.lineTo(x,y); g.lineTo(x-ah*Math.cos(b+0.45),y-ah*Math.sin(b+0.45)); });
+  g.stroke(); g.restore();
+  const lab=enLabel(l.label), mx=(x1+x2)/2, my=(y1+y2)/2, tw=capsText(g,lab,0,0,15,{measure:true}), bw=tw+16, bh=15*1.5+6;
+  g.fillStyle='#FFFFFF'; g.fillRect(mx-bw/2, my-bh/2, bw, bh);
+  capsText(g, lab, mx, my-15*1.5/2, 15, {anchor:'center'});
+}
+/** 도식화 + 치수선을 영역(ox,oy,maxW,maxH)에 맞춰 그림 (기존 drawLineArt와 같은 배치, 글씨만 양식대로) */
+function drawLineArtT(g, ox, oy, maxW, maxH){
+  const img=S.line.img, D=darkMap(img), b=D.box, ls=S.line.lines||[];
+  let rx0=b.x0, ry0=b.y0, rx1=b.x1, ry1=b.y1;
+  ls.forEach(l=>{ rx0=Math.min(rx0,l.x1,l.x2); rx1=Math.max(rx1,l.x1,l.x2); ry0=Math.min(ry0,l.y1,l.y2); ry1=Math.max(ry1,l.y1,l.y2); });
+  rx0=Math.max(0,rx0-0.04); ry0=Math.max(0,ry0-0.03); rx1=Math.min(1,rx1+(ls.some(l=>l.len)?0.08:0.04)); ry1=Math.min(1,ry1+0.03);
+  const W=iw(img), H=ih(img), sw=(rx1-rx0)*W, sh=(ry1-ry0)*H, s=Math.min(maxW/sw, maxH/sh), dw=sw*s, dh=sh*s, dx=ox+(maxW-dw)/2, dy=oy+(maxH-dh)/2;
+  const map=(x,y)=>[dx+(x-rx0)*W*s, dy+(y-ry0)*H*s];
+  g.save(); g.imageSmoothingQuality='high'; g.drawImage(img, rx0*W, ry0*H, sw, sh, dx, dy, dw, dh); g.restore();
+  const right=map(b.x1,0)[0]-4;
+  ls.forEach(l=>drawDimT(g, l, map, l.len?{x1:right}:null));
+}
+/** SIZE GUIDE 블록 (y0 = 블록 위쪽, 860 좌표) — 높이 돌려줌 */
+async function drawSizeBlockT(g, y0){
+  const T=TPL, sg=T.SG, i=S.info;
+  capsText(g,'SIZE GUIDE',T.MX,y0+sg.title,24,{bold:true});
+  capsText(g,'MEASURED FLAT · CM',T.MX,y0+sg.sub,15,{color:T.GREY});
+  try{ const lg=await loadImg(T.LOGO_EEUN), lw=120; g.drawImage(lg,790-lw,y0+2,lw,ih(lg)*lw/iw(lg)); }catch(e){}
+  g.fillStyle=T.RULE; g.fillRect(T.MX,y0+sg.rule,720,1);
   const first=(S.cuts[0]||{}).front;
-  if(S.line&&S.line.img){
-    drawLineArt(g, 160, 340, 1280, 900, 1.25);
-    const gk=garmentKind();
-    g.font='400 24px "Noto Sans KR", sans-serif'; g.fillStyle='#8a8a8a'; g.textAlign='center'; g.fillText((gk&&gk!=='기타'?'앞면 · ':'')+'단면 측정 기준',W/2,1262); g.textAlign='left';
-  } else if(first&&first.img){
-    const img=composeFront(first.img), b=alphaBBox(img), s=Math.min(760/b.w,880/b.h), w=b.w*s, h=b.h*s, x=(W-w)/2, y=350+(900-h)/2;
-    g.save(); g.shadowColor='rgba(0,0,0,0.18)'; g.shadowBlur=26; g.shadowOffsetY=3000; g.fillStyle='#000'; g.beginPath(); g.ellipse(W/2,y+h-2-3000,w*0.3,13,0,0,Math.PI*2); g.fill(); g.restore();
-    g.drawImage(img,b.x,b.y,b.w,b.h,x,y,w,h);
-  }
-  const ct=(t,yy,f,c)=>{ g.font=f; g.fillStyle=c; g.textAlign='center'; g.fillText(t,W/2,yy); g.textAlign='left'; };
-  const ms=(i.measurements||[]).filter(m=>m.label);
-  const gk2=garmentKind();
-  ct((gk2&&gk2!=='기타'?gk2+' ':'')+'사이즈 안내',1320,'500 36px "Noto Sans KR", sans-serif',DK);
-  ct(ms.length?(i.sale_size||'FREE')+' / 단위 cm':'상세 실측은 확인 후 안내 예정입니다.',1382,'400 26px "Noto Sans KR", sans-serif',GR);
-  hl(1450,'#969696');
-  const items = ms.length ? ms : defaultLabels().map(l=>({label:l,value:'—'}));
-  const perRow=Math.min(4,items.length), rows=Math.ceil(items.length/perRow); let yy=1450;
-  for(let r=0;r<rows;r++){
-    const part=items.slice(r*perRow,(r+1)*perRow), cw=1380/perRow;
-    part.forEach((m,k)=>{ const cx=110+cw*k+cw/2; g.textAlign='center'; g.fillStyle=DK;
-      g.font='400 30px "Noto Sans KR", sans-serif'; g.fillText(m.label,cx,yy+30);
-      g.font='400 40px "Noto Sans KR", sans-serif'; g.fillText(m.value||'—',cx,yy+82); g.textAlign='left'; });
-    yy+=165; hl(yy,LN);
-  }
-  ct('SIZE  '+i.sale_size, yy+40,'500 30px "Noto Sans KR", sans-serif',DK);
-  ct(i.sale_colors.map(c=>c.name).join(' · ')+(i.material_customer?'  /  '+i.material_customer.replace(/\s*\/\s*/g,' · '):''), yy+90,'400 28px "Noto Sans KR", sans-serif',GR);
-  ct('측정 위치는 도식화를 참고해 주세요.', yy+150,'400 24px "Noto Sans KR", sans-serif',GR);
-  ct('측정 방법에 따라 1~3cm의 오차가 있을 수 있습니다.', yy+190,'400 24px "Noto Sans KR", sans-serif',GR);
-  return cv.toDataURL('image/png');
+  if(S.line&&S.line.img) drawLineArtT(g, sg.fx, y0+sg.fy, sg.fw, sg.fh);
+  else if(first&&first.img){ const img=composeFront(first.img), b=alphaBBox(img), s=Math.min(sg.fw*0.7/b.w, sg.fh*0.92/b.h), w=b.w*s, h=b.h*s;
+    g.drawImage(img,b.x,b.y,b.w,b.h, sg.fx+(sg.fw-w)/2, y0+sg.fy+(sg.fh-h)/2, w, h); }
+  capsText(g,'FRONT · MEASURED FLAT',430,y0+sg.cap,14,{color:T.GREY,anchor:'center'});
+  const items=sizeItemsT(), cols=[{label:'SIZE',value:(i.sale_size||'FREE')}].concat(items), cw=720/cols.length, hs=cols.length<=7?15:13;
+  g.fillStyle=T.INK; g.fillRect(T.MX,y0+sg.ttop,720,1.2);
+  cols.forEach((c,k)=>{ const cx=T.MX+cw*(k+0.5);
+    capsText(g,c.label,cx,y0+sg.head+(hs<15?1:0),hs,{color:T.GREY,anchor:'center'});
+    capsText(g,c.value,cx,y0+sg.val,cols.length>9?22:26,{anchor:'center'}); });
+  g.fillStyle=T.RULE; g.fillRect(T.MX,y0+sg.tbot,720,1);
+  const ms=(i.measurements||[]).filter(m=>m.label&&String(m.value||'').trim());
+  capsText(g, ms.length?'PLEASE REFER TO THE DRAWING FOR EACH MEASURING POINT.':'DETAILED MEASUREMENTS WILL BE UPDATED SOON.',430,y0+sg.n1,13,{color:T.GREY,anchor:'center'});
+  capsText(g,'MEASUREMENTS MAY VARY BY 1–3CM DEPENDING ON THE METHOD.',430,y0+sg.n2,13,{color:T.GREY,anchor:'center'});
+  return T.SIZE_H;
+}
+function canvasT(h860){ const cv=document.createElement('canvas'); cv.width=1000; cv.height=Math.round(h860*TPL.K); const g=cv.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height); g.scale(TPL.K,TPL.K); g.imageSmoothingQuality='high'; return {cv,g}; }
+function jpegT(cv){ let q=0.92, url=cv.toDataURL('image/jpeg',q); while(url.length*0.75>4.8e6 && q>0.6){ q-=0.08; url=cv.toDataURL('image/jpeg',q); } return url; }
+/** 제품컷 부분: DETAIL POINT. + 컬러별 정면(점)·사선 (+ 클로즈업 체크 시 B 양식) — 아래 180 여백 포함 */
+async function renderDetail(){
+  const i=S.info, T=TPL; await fontsReady();
+  const items=[];
+  i.sale_colors.forEach((c,ci)=>{ const cut=S.cuts[ci]||{};
+    items.push({img:cut.front&&cut.front.img?composeFront(cut.front.img):null, dot:c.hex||'#111111', view:'front'});
+    if(cut.side&&cut.side.img) items.push({img:composeCut(cut.side.img,'side'), view:'side'}); });
+  const closes=$('useCrops').checked ? (S.crops||[]).map(c=>c.gen&&c.gen.img).filter(Boolean) : [];
+  let H=T.FIRST+items.length*T.BOX_H+Math.max(0,items.length-1)*T.GAP;
+  if(closes.length) H+=T.GAP_CLOSE+closes.length*T.CLOSE_H+(closes.length-1)*T.GAP;
+  H+=T.GAP_SIZE;
+  const {cv,g}=canvasT(H);
+  capsText(g,'DETAIL POINT.',430,T.TITLE_Y,24,{bold:true,anchor:'center'});
+  let y=T.FIRST;
+  items.forEach(it=>{ drawCutBoxT(g,it.img,T.MX,y,it.view);
+    if(it.dot){ const r=T.DOT/2, cx=T.MX+T.DOT_OFF+r, cy=y+T.DOT_OFF+r; g.fillStyle=it.dot; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill(); g.strokeStyle='rgba(0,0,0,.10)'; g.lineWidth=1; g.stroke(); }
+    y+=T.BOX_H+T.GAP; });
+  if(closes.length){ y+=T.GAP_CLOSE-T.GAP;
+    closes.forEach(img=>{ const s=Math.max(T.CLOSE_W/iw(img), T.CLOSE_H/ih(img)), w=iw(img)*s, h=ih(img)*s;
+      g.save(); g.beginPath(); g.rect(0,y,T.CLOSE_W,T.CLOSE_H); g.clip(); g.drawImage(img,(T.CLOSE_W-w)/2,y+(T.CLOSE_H-h)/2,w,h); g.restore(); y+=T.CLOSE_H+T.GAP; }); }
+  return jpegT(cv);
+}
+/** 사이즈표: 단독 PNG(위아래 120 여백) + 상세에 이어 붙일 블록 + 맨 아래 정보 블록까지 같이 만듦 */
+async function renderSize(){
+  await fontsReady(); const T=TPL;
+  const a=canvasT(T.SIZE_H+240); await drawSizeBlockT(a.g,120);
+  const b=canvasT(T.SIZE_H+T.GAP_INFO); await drawSizeBlockT(b.g,0);
+  S.out.sizeBlock=jpegT(b.cv); S.out.footer=await renderFooter();
+  return a.cv.toDataURL('image/png');
+}
+/** 맨 아래: 상품명(영문) · COLOR · FABRIC · SIZE + 오른쪽 eeun archive 로고 */
+async function renderFooter(){
+  const i=S.info, T=TPL, name=(i.product_name_en||'').trim();
+  const rows=[['COLOR', i.sale_colors.map(c=>enColor(c.name)).join(' / ')], ['FABRIC', enMat(i.material_customer)], ['SIZE', i.sale_size||'FREE']].filter(r=>r[1]);
+  const top=name?52:0, last=top+32*(rows.length-1), H=last+24+T.PAD_BOTTOM;
+  const {cv,g}=canvasT(H);
+  if(name) capsText(g,name,T.MX,0,24);
+  rows.forEach((r,k)=>{ capsText(g,r[0],T.MX,top+32*k,16,{color:T.GREY}); capsText(g,r[1],190,top+32*k,16); });
+  try{ const lg=await loadImg(T.LOGO_INK), lw=240, lh=ih(lg)*lw/iw(lg); g.drawImage(lg,790-lw,last+24-lh,lw,lh); }catch(e){}
+  return jpegT(cv);
 }
 async function renderAll(){
   readForm(); log('상세페이지·사이즈표 만드는 중…');
