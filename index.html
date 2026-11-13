@@ -201,6 +201,8 @@
     <h2><span class="n">2</span>검토·수정</h2>
     <label>상품명</label><input type="text" id="f_name">
     <label>영문 상품명 <span class="muted">(상세 이미지 맨 아래 · 비우면 이름 줄 없이 들어가요)</span></label><input type="text" id="f_nameEn" placeholder="예: SUEDE FUR-TRIM SHORT MUSTANG">
+    <label>영문 디자인 문구 <span class="muted">(상세 이미지 맨 아래 상품명 위 · 줄바꿈 그대로 · 비우면 안 들어가요)</span></label><textarea id="f_descEn" rows="6" placeholder="LUXURIOUS FAUX FUR JACKET WITH AN OVERSIZED SHAWL COLLAR, … AVAILABLE IN CLASSIC BLACK AND SOFT IVORY.&#10;“A TOUCH OF WARMTH,&#10;A STATEMENT OF STYLE.”&#10;— ON THE DETAILS"></textarea>
+    <div class="btns" style="margin-top:6px"><button class="sm" id="btnDescEn">영문 문구 다시 쓰기</button></div>
     <div class="row">
       <div><label>유형</label><select id="f_type"><option>1688</option><option>동대문</option></select></div>
       <div><label>판매 사이즈</label><input type="text" id="f_saleSize"></div>
@@ -384,7 +386,7 @@ const PAGE_BG = '#F1F1F1';
 function log(msg, cls){ const d=document.createElement('div'); d.textContent=new Date().toLocaleTimeString('ko-KR',{hour12:false})+'  '+msg; if(cls) d.className=cls; $('log').appendChild(d); $('log').scrollTop=1e9; }
 const IN_GAS = !!(window.google && google.script && google.script.run);
 function serverUrl(){ return (window.EEUN_SERVER || lsGet('eeun_server') || '').trim(); }
-const SAFE_FN=/^(api_status|api_init|api_labels|api_cutStatus|api_uploadFile|api_copyFile|api_prepareFolders|api_finalize|api_workFolder|api_workSave|api_workList|api_workGet|api_workDelete|api_asset|api_measureLines|api_c24SetDisplay)$/;
+const SAFE_FN=/^(api_status|api_init|api_labels|api_cutStatus|api_uploadFile|api_copyFile|api_prepareFolders|api_finalize|api_workFolder|api_workSave|api_workList|api_workGet|api_workDelete|api_asset|api_measureLines|api_c24SetDisplay|api_writeEn)$/;
 function whenVisible(){ return document.visibilityState==='visible' ? Promise.resolve() : new Promise(r=>{ const f=()=>{ if(document.visibilityState==='visible'){ document.removeEventListener('visibilitychange',f); r(); } }; document.addEventListener('visibilitychange',f); }); }
 async function run(fn, ...args){
   for(let k=0;;k++){
@@ -731,7 +733,20 @@ async function analyze(){
   S.crops = defaultCrops(info); $('useCrops').checked=false;
   fillForm(); show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
   log('분석 완료: '+info.product_name, 'ok');
+  if(!info.description_en) await writeEn(true);
   saveDraft(true);
+}
+/** 영문 설명(EDITOR'S NOTE) — 상품 정보로 GPT가 2~3문장 작성 (텍스트만이라 크레딧 거의 안 씀) */
+async function writeEn(auto){
+  readForm(); log('영문 디자인 문구 쓰는 중…');
+  try{
+    const r=await run('api_writeEn', S.code, S.info);
+    S.info.description_en=String(r&&r.description_en||'').trim(); $('f_descEn').value=S.info.description_en;
+    log('영문 디자인 문구 완료','ok'); saveDraft();
+  }catch(e){
+    const old=/알 수 없는 요청/.test(e.message), msg=old?'영문 디자인 문구는 서버 업데이트 후 자동으로 써져요 — 지금은 직접 넣어도 돼요':'영문 문구 실패: '+e.message;
+    if(auto) log(msg,'err'); else throw new Error(msg);
+  }
 }
 /** 1688 링크·공유문구면 1688(중국 계산기), 그 밖의 링크(신상마켓 등 동대문)는 동대문(한국 계산기) */
 function typeFromText(t){ t=String(t||''); if(/1688\.com|qr\.1688|￥|(^|[^0-9])1688([^0-9]|$)/i.test(t)) return '1688'; if(/https?:\/\/|sinsang|신상마켓|동대문|도매/i.test(t)) return '동대문'; return null; }
@@ -757,7 +772,7 @@ $('btnAnalyze').onclick = ()=>guard(analyze);
 /* ───────────── 검토 폼 ───────────── */
 function fillForm(){
   const i=S.info, fx=S.init.fx.rate;
-  $('f_name').value=i.product_name||''; $('f_nameEn').value=i.product_name_en||''; $('f_type').value=i.type; $('f_saleSize').value=i.sale_size;
+  $('f_name').value=i.product_name||''; $('f_nameEn').value=i.product_name_en||''; $('f_descEn').value=i.description_en||''; $('f_type').value=i.type; $('f_saleSize').value=i.sale_size;
   $('f_made').checked=!!i.made; $('f_jakji').checked=!!i.made; $('f_jakjiMemo').value=i.jakjiMemo||'';
   show('labelsBox', !!i.made); show('jakjiBox', !!i.made);
   if(i.made){ drawLabelLib(); drawLabelSel(); }
@@ -773,7 +788,7 @@ function fillForm(){
 }
 function readForm(){
   const i=S.info;
-  i.product_name=$('f_name').value.trim(); i.product_name_en=$('f_nameEn').value.trim(); i.type=$('f_type').value; i.sale_size=$('f_saleSize').value.trim()||'FREE';
+  i.product_name=$('f_name').value.trim(); i.product_name_en=$('f_nameEn').value.trim(); i.description_en=$('f_descEn').value.trim(); i.type=$('f_type').value; i.sale_size=$('f_saleSize').value.trim()||'FREE';
   i.made=$('f_made').checked;
   if(i.made && !/^\[ EEUN MADE \]/.test(i.product_name)) { i.product_name='[ EEUN MADE ] '+i.product_name.replace(/^\[.*?\]\s*/,''); $('f_name').value=i.product_name; }
   if(S.labels.length) i.labels=S.labels.map(L=>({label:L.name, position:L.pos||'위치 확인 필요', method:L.method, wcm:Math.round(L.wcm*10)/10, memo:`${L.method} · 실물 가로 ${L.wcm.toFixed(1)}cm`}));
@@ -1694,7 +1709,7 @@ function whiteLines(img, sx, sy, sw, sh){
 }
 /** 헬베티카 대문자 글씨 (y = 글 상자 위쪽, 피그마와 같은 줄 간격·자간). 너비를 돌려줌 */
 function capsText(g, s, x, y, size, o={}){
-  s=String(s==null?'':s).toUpperCase(); const bold=!!o.bold, lh=bold?1.4:1.5, tr=(o.tr!=null?o.tr:(bold?0.04:(size<=12?0.08:0.05)))*size;
+  s=String(s==null?'':s).toUpperCase(); const bold=!!o.bold, lh=o.lh||(bold?1.4:1.5), tr=(o.tr!=null?o.tr:(bold?0.04:(size<=12?0.08:0.05)))*size;
   g.save(); g.font=`${bold?700:400} ${size}px ${TPL.FONT}`; g.fillStyle=o.color||TPL.INK; g.textBaseline='alphabetic'; g.textAlign='left';
   const ch=[...s], ws=ch.map(c=>g.measureText(c).width), w=ws.reduce((a,b)=>a+b,0)+tr*ch.length;
   let X=x; if(o.anchor==='center') X-=w/2; else if(o.anchor==='right') X-=w;
@@ -1830,12 +1845,34 @@ async function renderSize(){
   return a.cv.toDataURL('image/png');
 }
 /** 맨 아래: 상품명(영문) · COLOR · FABRIC · SIZE + 오른쪽 eeun archive 로고 */
+/** 대문자 글씨를 폭(maxW)에 맞춰 단어 단위로 줄바꿈 */
+function wrapCaps(g, text, size, maxW, tr){
+  const out=[]; let cur='';
+  String(text||'').replace(/\s+/g,' ').trim().split(' ').forEach(w=>{ const t=cur?cur+' '+w:w;
+    if(cur && capsText(g,t,0,0,size,{measure:true,tr})>maxW){ out.push(cur); cur=w; } else cur=t; });
+  if(cur) out.push(cur); return out;
+}
+const NOTE={ SIZE:17, LH:1.65, TR:0.06, SIGN:15, GAP_Q:30, GAP_SIGN:22, GAP:110 };   // 영문 디자인 문구 (폰 기준 최소 크기 이상)
+/** 영문 문구 줄 배치: 본문(줄바꿈 자동) → “따옴표 문구”(줄 그대로) → — ON THE DETAILS(회색) */
+function noteLayout(g, text){
+  const out=[]; let y=0, prev=null;
+  String(text||'').split(/\n+/).map(l=>l.trim()).filter(Boolean).forEach(l=>{
+    const kind=/^[—–-]{1,2}\s/.test(l)?'sign':(/^[“"']/.test(l)||prev==='quote'&&!/[”"]$/.test(out[out.length-1].t)?'quote':'body');
+    if(prev && kind!==prev) y+= kind==='sign'?NOTE.GAP_SIGN:NOTE.GAP_Q;
+    if(kind==='sign'){ out.push({t:l, y, size:NOTE.SIGN, grey:true, tr:0.12}); y+=NOTE.SIGN*1.5; }
+    else if(kind==='quote'){ out.push({t:l, y, size:NOTE.SIZE, tr:NOTE.TR}); y+=NOTE.SIZE*NOTE.LH; }
+    else wrapCaps(g, l, NOTE.SIZE, 720, NOTE.TR).forEach(w=>{ out.push({t:w, y, size:NOTE.SIZE, tr:NOTE.TR}); y+=NOTE.SIZE*NOTE.LH; });
+    prev=kind; });
+  return {lines:out, h:y};
+}
 async function renderFooter(){
-  const i=S.info, T=TPL, name=(i.product_name_en||'').trim();
+  const i=S.info, T=TPL, name=(i.product_name_en||'').trim(), note=(i.description_en||'').trim();
   const rows=[['COLOR', i.sale_colors.map(c=>enColor(c.name)).join(' / ')], ['FABRIC', enMat(i.material_customer)], ['SIZE', i.sale_size||'FREE']].filter(r=>r[1]);
-  const top=name?52:0, last=top+32*(rows.length-1), H=last+24+T.PAD_BOTTOM;
+  const NL = note ? noteLayout(document.createElement('canvas').getContext('2d'), note) : {lines:[], h:0};
+  const y0=NL.lines.length?NL.h+NOTE.GAP:0, top=y0+(name?52:0), last=top+32*(rows.length-1), H=last+24+T.PAD_BOTTOM;
   const {cv,g}=canvasT(H);
-  if(name) capsText(g,name,T.MX,0,20,{tr:0.08});
+  NL.lines.forEach(l=>capsText(g,l.t,T.MX,l.y,l.size,{tr:l.tr, lh:l.grey?1.5:NOTE.LH, color:l.grey?T.GREY:T.INK}));
+  if(name) capsText(g,name,T.MX,y0,20,{tr:0.08});
   rows.forEach((r,k)=>{ capsText(g,r[0],T.MX,top+32*k,16,{color:T.GREY}); capsText(g,r[1],190,top+32*k,16); });
   try{ const lg=await logoT(T.LOGO_INK), lw=240, lh=ih(lg)*lw/iw(lg); g.drawImage(lg,790-lw,last+24-lh,lw,lh); }catch(e){}
   return jpegT(cv);
@@ -1865,6 +1902,7 @@ document.querySelectorAll('#detTheme [data-theme]').forEach(b=>b.onclick=()=>gua
   saveDraft(true);
 }));
 $('btnRender').onclick=()=>guard(renderAll);
+$('btnDescEn').onclick=()=>guard(()=>writeEn(false));
 $('btnRerender').onclick=()=>guard(renderAll);
 
 /* ───────────── 저장 ───────────── */
