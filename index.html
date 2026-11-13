@@ -257,9 +257,6 @@
     <label>미확인 사항</label><input type="text" id="f_unk">
     </div></details>
     <div class="btns"><button class="pri" id="btnCuts">제품컷·도식화 생성</button><button id="btnRender">상세페이지·사이즈표 만들기</button></div>
-    <div class="btns"><button id="btnFolders">드라이브 폴더만 만들기</button></div>
-    <div class="muted" style="font-size:12px">주차 폴더 › 상품명 폴더(안쪽 폴더 포함)만 만들어요 · 파일 업로드·샘플시트 기록 없음 · 나중에 "드라이브·시트 저장"하면 같은 폴더에 들어가요</div>
-    <div class="links" id="folderLinks"></div>
   </section>
 
   <section id="secCuts" class="hidden">
@@ -515,7 +512,7 @@ function snapshot(){
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h, model:!!im.model})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
-    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, bnrColorMade:colorBannersMade(), layout:S.layout, layoutOff:S.layoutOff, theme:S.theme||'white', folder:S.folder||null,
+    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, bnrColorMade:colorBannersMade(), layout:S.layout, layoutOff:S.layoutOff, theme:S.theme||'white',
     myDet:(S.myDet||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), bnrMine:(S.bnrMine||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), rendered:!!(S.out&&S.out.detail), saved:S.saved, c24:S.c24||null,
     labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
   s.name=(s.info&&s.info.product_name)||(s.txt||'').split('\n')[0].slice(0,28)||'이름 없는 작업';
@@ -657,14 +654,13 @@ function resetWork(){
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
   S.c24=null; C24.filled=null; $('c24Links').innerHTML=''; show('c24Form',false);
   S.theme=lsGet('eeun_detail_theme')==='black'?'black':'white';   // 새 상품은 마지막에 고른 배경으로
-  S.folder=null; if($('folderLinks')) $('folderLinks').innerHTML='';
   ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
 }
 async function mapPool(arr, n, fn){ const out=new Array(arr.length); let k=0; await Promise.all(Array.from({length:Math.min(n,arr.length)},async()=>{ while(k<arr.length){ const i=k++; out[i]=await fn(arr[i],i); } })); return out; }
 async function restoreDraft(d, id){
   restoring=true; const pending=[];
   try{
-    resetWork(); S.workId=id||d.id||S.workId; S.saved=d.saved||null; S.c24=d.c24||null; S.theme=d.theme==='black'?'black':'white'; S.folder=d.folder||null; drawFolderLinks();
+    resetWork(); S.workId=id||d.id||S.workId; S.saved=d.saved||null; S.c24=d.c24||null; S.theme=d.theme==='black'?'black':'white';
     $('txt').value=d.txt||'';
     // 이미지: 이 폰 캐시 먼저, 없는 것만 드라이브에서 6개씩 동시에
     const want=[], collect=f=>{ if(f) want.push(f); };
@@ -1913,31 +1909,6 @@ async function saveAll(){
 }
 $('btnSave').onclick=()=>guard(saveAll);
 
-/* ───────────── 드라이브 폴더만 (업로드는 나중에 Claude·사람이 직접) ───────────── */
-function drawFolderLinks(){
-  const F=S.folder, box=$('folderLinks'); if(!box) return;
-  if(!F||!F.productUrl){ box.innerHTML=''; return; }
-  box.innerHTML=`<a href="${F.productUrl}" target="_blank">📁 ${F.weekName?F.weekName+' / ':''}${F.name||'제품 폴더'}</a>`
-    +`<div class="btns"><button class="sm" id="btnFolderCopy">폴더 정보 복사</button></div>`
-    +`<div class="muted" style="font-size:12px">복사한 걸 Claude한테 붙여넣으면 이 폴더에 바로 올려줘요</div>`;
-  $('btnFolderCopy').onclick=async()=>{
-    const t=`[EEUN 드라이브 폴더]\n상품명: ${F.name}\n주차 폴더: ${F.weekName||''}\n제품 폴더: ${F.productUrl}\n제품 폴더 ID: ${F.productId}\n제품샷 폴더 ID: ${F.shotsId||''}\n원본 폴더 ID: ${F.srcId||''}`;
-    try{ await navigator.clipboard.writeText(t); log('폴더 정보 복사됨','ok'); }
-    catch(e){ prompt('아래 내용을 길게 눌러 복사하세요', t); }
-  };
-}
-$('btnFolders').onclick=()=>guard(async()=>{
-  readForm(); const name=(S.info&&S.info.product_name||'').trim();
-  if(!name) throw new Error('상품명을 먼저 넣어주세요.');
-  if(!S.workId) S.workId=newId();
-  log('드라이브 폴더 만드는 중…');
-  const F=await run('api_prepareFolders', S.code, name);
-  S.folder={ name, weekName:F.weekName, productId:F.productId, productUrl:F.productUrl, shotsId:F.shotsId, srcId:F.srcId };
-  drawFolderLinks();
-  log(`폴더 준비 완료 · ${F.weekName} / ${name}`,'ok');
-  saveDraft(true);
-});
-
 /* ───────────── 카페24 업로드 ───────────── */
 const C24={ st:null, meta:null, cats:new Set(), mains:new Set(), rep:0, models:new Set(), filled:null };
 const C24_SHOP='https://eunsam2089.cafe24.com', C24_FRONT='https://eeunarchive.com';
@@ -2058,7 +2029,8 @@ async function c24Upload(){
   const html='<div style="text-align:center;">'+paths.map(p=>`<img src="${p}" style="max-width:100%;display:block;margin:0 auto;">`).join('')+'</div>';
   const show1=$('c24Show').checked?'T':'F';
   const req={ display:show1, selling:show1, product_name:name, supply_product_name:$('c24SupName').value.trim().slice(0,250), price, supply_price:supply,
-    has_option:options.length?'T':'F', options, description:html, mobile_description:html,
+    has_option:options.length?'T':'F', options, description:html,
+    separated_mobile_description:'T', mobile_description:html,   // 모바일 상세 '직접 등록' = 같은 이미지 원본 크기 그대로 (상세설명 동일로 두면 카페24가 모바일 이미지를 줄임)
     add_category_no:[...C24.cats].map(n=>({category_no:Number(n), recommend:'F', new:'F'})), main:[...C24.mains].map(String) };
   const sc=$('c24SupCode').value.trim(); if(/^[A-Z0-9]{8}$/.test(sc)) req.supplier_code=sc;
   if(!options.length) delete req.options;
