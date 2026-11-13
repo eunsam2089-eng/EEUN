@@ -1749,7 +1749,7 @@ function drawLineArtT(g, ox, oy, maxW, maxH){
 /** SIZE GUIDE 블록 (y0 = 블록 위쪽, 860 좌표) — 높이 돌려줌 */
 async function drawSizeBlockT(g, y0){
   const T=TPL, sg=T.SG, i=S.info;
-  capsText(g,'SIZE GUIDE',T.MX,y0+sg.title,24,{bold:true});
+  capsText(g,'SIZE GUIDE',T.MX,y0+sg.title,22,{tr:0.18});
   capsText(g,'MEASURED FLAT · CM',T.MX,y0+sg.sub,15,{color:T.GREY});
   try{ const lg=await loadImg(T.LOGO_EEUN), lw=120; g.drawImage(lg,790-lw,y0+2,lw,ih(lg)*lw/iw(lg)); }catch(e){}
   g.fillStyle=T.RULE; g.fillRect(T.MX,y0+sg.rule,720,1);
@@ -1784,7 +1784,7 @@ async function renderDetail(){
   if(closes.length) H+=T.GAP_CLOSE+closes.length*T.CLOSE_H+(closes.length-1)*T.GAP;
   H+=T.GAP_SIZE;
   const {cv,g}=canvasT(H);
-  capsText(g,'DETAIL POINT.',430,T.TITLE_Y,24,{bold:true,anchor:'center'});
+  capsText(g,'DETAIL POINT.',430,T.TITLE_Y,22,{tr:0.18,anchor:'center'});
   let y=T.FIRST;
   items.forEach(it=>{ drawCutBoxT(g,it.img,T.MX,y,it.view);
     if(it.dot){ const r=T.DOT/2, cx=T.MX+T.DOT_OFF+r, cy=y+T.DOT_OFF+r; g.fillStyle=it.dot; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill(); g.strokeStyle='rgba(0,0,0,.10)'; g.lineWidth=1; g.stroke(); }
@@ -1808,7 +1808,7 @@ async function renderFooter(){
   const rows=[['COLOR', i.sale_colors.map(c=>enColor(c.name)).join(' / ')], ['FABRIC', enMat(i.material_customer)], ['SIZE', i.sale_size||'FREE']].filter(r=>r[1]);
   const top=name?52:0, last=top+32*(rows.length-1), H=last+24+T.PAD_BOTTOM;
   const {cv,g}=canvasT(H);
-  if(name) capsText(g,name,T.MX,0,24);
+  if(name) capsText(g,name,T.MX,0,20,{tr:0.08});
   rows.forEach((r,k)=>{ capsText(g,r[0],T.MX,top+32*k,16,{color:T.GREY}); capsText(g,r[1],190,top+32*k,16); });
   try{ const lg=await loadImg(T.LOGO_INK), lw=240, lh=ih(lg)*lw/iw(lg); g.drawImage(lg,790-lw,last+24-lh,lw,lh); }catch(e){}
   return jpegT(cv);
