@@ -269,6 +269,7 @@
 
   <section id="secOut" class="hidden">
     <h2><span class="n">4</span>결과물</h2>
+    <div class="chips" id="detTheme" style="margin:2px 0 12px;align-items:center"><span class="muted" style="font-size:13px;margin-right:4px">상세 배경</span><button class="sm chip" data-theme="white"><span class="dot" style="background:#fff;border:1px solid #ccc"></span>화이트</button><button class="sm chip" data-theme="black"><span class="dot" style="background:#111"></span>블랙 · 흰 라인</button></div>
     <div class="out">
       <div><div class="muted">상세페이지 (완성본)</div><div class="pv" id="pvDetailBox"></div><div id="dlDetailBox"></div></div>
       <div><div class="muted">사이즈표</div><div class="pv"><img id="pvSize"></div><a id="dlSize" class="muted" download>다운로드</a></div>
@@ -509,7 +510,7 @@ function snapshot(){
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h, model:!!im.model})),
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
-    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, bnrColorMade:colorBannersMade(), layout:S.layout, layoutOff:S.layoutOff,
+    cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, bnrColorMade:colorBannersMade(), layout:S.layout, layoutOff:S.layoutOff, theme:S.theme||'white',
     myDet:(S.myDet||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), bnrMine:(S.bnrMine||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), rendered:!!(S.out&&S.out.detail), saved:S.saved, c24:S.c24||null,
     labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
   s.name=(s.info&&s.info.product_name)||(s.txt||'').split('\n')[0].slice(0,28)||'이름 없는 작업';
@@ -650,13 +651,14 @@ function resetWork(){
   S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[]; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false;
   $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
   S.c24=null; C24.filled=null; $('c24Links').innerHTML=''; show('c24Form',false);
+  S.theme=lsGet('eeun_detail_theme')==='black'?'black':'white';   // 새 상품은 마지막에 고른 배경으로
   ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
 }
 async function mapPool(arr, n, fn){ const out=new Array(arr.length); let k=0; await Promise.all(Array.from({length:Math.min(n,arr.length)},async()=>{ while(k<arr.length){ const i=k++; out[i]=await fn(arr[i],i); } })); return out; }
 async function restoreDraft(d, id){
   restoring=true; const pending=[];
   try{
-    resetWork(); S.workId=id||d.id||S.workId; S.saved=d.saved||null; S.c24=d.c24||null;
+    resetWork(); S.workId=id||d.id||S.workId; S.saved=d.saved||null; S.c24=d.c24||null; S.theme=d.theme==='black'?'black':'white';
     $('txt').value=d.txt||'';
     // 이미지: 이 폰 캐시 먼저, 없는 것만 드라이브에서 6개씩 동시에
     const want=[], collect=f=>{ if(f) want.push(f); };
@@ -1559,7 +1561,7 @@ async function composePages(){
   if(cur.length) pages.push(cur);
   S.out.pages=pages.map(pg=>{
     const H=pg.reduce((a,sg)=>a+sg.h,0), cv=document.createElement('canvas'); cv.width=1000; cv.height=H; const g=cv.getContext('2d');
-    g.fillStyle='#fff'; g.fillRect(0,0,1000,H); g.imageSmoothingQuality='high'; let y=0; pg.forEach(sg=>{ g.drawImage(sg.im,0,y,1000,sg.h); y+=sg.h; });
+    applyTheme(); g.fillStyle=TPL.BG; g.fillRect(0,0,1000,H); g.imageSmoothingQuality='high'; let y=0; pg.forEach(sg=>{ g.drawImage(sg.im,0,y,1000,sg.h); y+=sg.h; });
     let q=0.9, url=cv.toDataURL('image/jpeg',q);
     while(url.length*0.75>4.8e6 && q>0.6){ q-=0.08; url=cv.toDataURL('image/jpeg',q); }
     return url;
@@ -1667,6 +1669,27 @@ const TPL={ K:1000/860, MX:70, BOX_W:720, BOX_H:900, BOX_BG:'#F0F0F0', DOT:36, D
   INK:'#111111', GREY:'#8D9298', RULE:'#D5D8DB',
   FONT:'Arimo, "Helvetica Neue", Helvetica, Arial, "Noto Sans KR", sans-serif',
   LOGO_INK:'assets/logo_ink.png', LOGO_EEUN:'assets/logo_eeun.png' };
+/* 상세 배경: 화이트(기본) / 블랙 — 블랙은 글씨·선·도식화·로고가 흰색, 제품컷 상자(#F0F0F0)는 그대로 */
+const THEMES={
+  white:{BG:'#FFFFFF', INK:'#111111', GREY:'#8D9298', RULE:'#D5D8DB', DIM:'#555555', EXT:'#C9C9C9', DARK:false},
+  black:{BG:'#111111', INK:'#FFFFFF', GREY:'#9A9EA3', RULE:'#3A3A3A', DIM:'#D9D9D9', EXT:'#4A4A4A', DARK:true} };
+const themeName=()=>{ if(!S.theme) S.theme=lsGet('eeun_detail_theme')==='black'?'black':'white'; return S.theme; };
+function applyTheme(){ Object.assign(TPL, THEMES[themeName()]); }
+applyTheme();
+/** 검정 로고 → 지금 글씨색(블랙 배경이면 흰색) */
+async function logoT(src){
+  const lg=await loadImg(src); if(!TPL.DARK) return lg;
+  const c=document.createElement('canvas'); c.width=iw(lg); c.height=ih(lg); const g=c.getContext('2d');
+  g.drawImage(lg,0,0); g.globalCompositeOperation='source-in'; g.fillStyle=TPL.INK; g.fillRect(0,0,c.width,c.height); return c;
+}
+/** 흰 바탕 검정 라인 도식화 → 투명 바탕 흰 라인 (연한 디테일 선은 반투명으로 남아서 흰 배경일 때와 같은 강약) */
+function whiteLines(img, sx, sy, sw, sh){
+  const W=Math.max(1,Math.round(sw)), H=Math.max(1,Math.round(sh)), c=document.createElement('canvas'); c.width=W; c.height=H;
+  const g=c.getContext('2d',{willReadFrequently:true}); g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.drawImage(img,sx,sy,sw,sh,0,0,W,H);
+  const d=g.getImageData(0,0,W,H), p=d.data;
+  for(let k=0;k<p.length;k+=4){ const L=p[k]*.3+p[k+1]*.59+p[k+2]*.11; p[k]=p[k+1]=p[k+2]=255; p[k+3]=Math.max(0,Math.min(255,Math.round((245-L)*255/185))); }
+  g.putImageData(d,0,0); return c;
+}
 /** 헬베티카 대문자 글씨 (y = 글 상자 위쪽, 피그마와 같은 줄 간격·자간). 너비를 돌려줌 */
 function capsText(g, s, x, y, size, o={}){
   s=String(s==null?'':s).toUpperCase(); const bold=!!o.bold, lh=bold?1.4:1.5, tr=(o.tr!=null?o.tr:(bold?0.04:(size<=12?0.08:0.05)))*size;
@@ -1726,12 +1749,12 @@ function drawCutBoxT(g, img, x, y, view){
 function drawDimT(g, l, map, ext){
   const [x1,y1]=map(l.x1,l.y1), [x2,y2]=map(l.x2,l.y2), a=Math.atan2(y2-y1,x2-x1), ah=7;
   g.save(); g.lineCap='round'; g.lineJoin='round';
-  if(ext && l.len){ g.strokeStyle='#C9C9C9'; g.lineWidth=1; g.beginPath(); g.moveTo(ext.x1,y1); g.lineTo(x1+8,y1); g.moveTo(ext.x1,y2); g.lineTo(x2+8,y2); g.stroke(); }
-  g.strokeStyle='#555555'; g.lineWidth=1.2; g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2);
+  if(ext && l.len){ g.strokeStyle=TPL.EXT; g.lineWidth=1; g.beginPath(); g.moveTo(ext.x1,y1); g.lineTo(x1+8,y1); g.moveTo(ext.x1,y2); g.lineTo(x2+8,y2); g.stroke(); }
+  g.strokeStyle=TPL.DIM; g.lineWidth=1.2; g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2);
   [[x2,y2,a],[x1,y1,a+Math.PI]].forEach(([x,y,b])=>{ g.moveTo(x-ah*Math.cos(b-0.45),y-ah*Math.sin(b-0.45)); g.lineTo(x,y); g.lineTo(x-ah*Math.cos(b+0.45),y-ah*Math.sin(b+0.45)); });
   g.stroke(); g.restore();
   const lab=enLabel(l.label), mx=(x1+x2)/2, my=(y1+y2)/2, tw=capsText(g,lab,0,0,15,{measure:true}), bw=tw+16, bh=15*1.5+6;
-  g.fillStyle='#FFFFFF'; g.fillRect(mx-bw/2, my-bh/2, bw, bh);
+  g.fillStyle=TPL.BG; g.fillRect(mx-bw/2, my-bh/2, bw, bh);
   capsText(g, lab, mx, my-15*1.5/2, 15, {anchor:'center'});
 }
 /** 도식화 + 치수선을 영역(ox,oy,maxW,maxH)에 맞춰 그림 (기존 drawLineArt와 같은 배치, 글씨만 양식대로) */
@@ -1742,7 +1765,9 @@ function drawLineArtT(g, ox, oy, maxW, maxH){
   rx0=Math.max(0,rx0-0.04); ry0=Math.max(0,ry0-0.03); rx1=Math.min(1,rx1+(ls.some(l=>l.len)?0.08:0.04)); ry1=Math.min(1,ry1+0.03);
   const W=iw(img), H=ih(img), sw=(rx1-rx0)*W, sh=(ry1-ry0)*H, s=Math.min(maxW/sw, maxH/sh), dw=sw*s, dh=sh*s, dx=ox+(maxW-dw)/2, dy=oy+(maxH-dh)/2;
   const map=(x,y)=>[dx+(x-rx0)*W*s, dy+(y-ry0)*H*s];
-  g.save(); g.imageSmoothingQuality='high'; g.drawImage(img, rx0*W, ry0*H, sw, sh, dx, dy, dw, dh); g.restore();
+  g.save(); g.imageSmoothingQuality='high';
+  if(TPL.DARK) g.drawImage(whiteLines(img, rx0*W, ry0*H, sw, sh), dx, dy, dw, dh); else g.drawImage(img, rx0*W, ry0*H, sw, sh, dx, dy, dw, dh);
+  g.restore();
   const right=map(b.x1,0)[0]-4;
   ls.forEach(l=>drawDimT(g, l, map, l.len?{x1:right}:null));
 }
@@ -1751,7 +1776,7 @@ async function drawSizeBlockT(g, y0){
   const T=TPL, sg=T.SG, i=S.info;
   capsText(g,'SIZE GUIDE',T.MX,y0+sg.title,22,{tr:0.18});
   capsText(g,'MEASURED FLAT · CM',T.MX,y0+sg.sub,15,{color:T.GREY});
-  try{ const lg=await loadImg(T.LOGO_EEUN), lw=120; g.drawImage(lg,790-lw,y0+2,lw,ih(lg)*lw/iw(lg)); }catch(e){}
+  try{ const lg=await logoT(T.LOGO_EEUN), lw=120; g.drawImage(lg,790-lw,y0+2,lw,ih(lg)*lw/iw(lg)); }catch(e){}
   g.fillStyle=T.RULE; g.fillRect(T.MX,y0+sg.rule,720,1);
   const first=(S.cuts[0]||{}).front;
   if(S.line&&S.line.img) drawLineArtT(g, sg.fx, y0+sg.fy, sg.fw, sg.fh);
@@ -1769,8 +1794,8 @@ async function drawSizeBlockT(g, y0){
   capsText(g,'MEASUREMENTS MAY VARY BY 1–3CM DEPENDING ON THE METHOD.',430,y0+sg.n2,13,{color:T.GREY,anchor:'center'});
   return T.SIZE_H;
 }
-function canvasT(h860){ const cv=document.createElement('canvas'); cv.width=1000; cv.height=Math.round(h860*TPL.K); const g=cv.getContext('2d');
-  g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height); g.scale(TPL.K,TPL.K); g.imageSmoothingQuality='high'; return {cv,g}; }
+function canvasT(h860){ applyTheme(); const cv=document.createElement('canvas'); cv.width=1000; cv.height=Math.round(h860*TPL.K); const g=cv.getContext('2d');
+  g.fillStyle=TPL.BG; g.fillRect(0,0,cv.width,cv.height); g.scale(TPL.K,TPL.K); g.imageSmoothingQuality='high'; return {cv,g}; }
 function jpegT(cv){ let q=0.92, url=cv.toDataURL('image/jpeg',q); while(url.length*0.75>4.8e6 && q>0.6){ q-=0.08; url=cv.toDataURL('image/jpeg',q); } return url; }
 /** 제품컷 부분: DETAIL POINT. + 컬러별 정면(점)·사선 (+ 클로즈업 체크 시 B 양식) — 아래 180 여백 포함 */
 async function renderDetail(){
@@ -1810,7 +1835,7 @@ async function renderFooter(){
   const {cv,g}=canvasT(H);
   if(name) capsText(g,name,T.MX,0,20,{tr:0.08});
   rows.forEach((r,k)=>{ capsText(g,r[0],T.MX,top+32*k,16,{color:T.GREY}); capsText(g,r[1],190,top+32*k,16); });
-  try{ const lg=await loadImg(T.LOGO_INK), lw=240, lh=ih(lg)*lw/iw(lg); g.drawImage(lg,790-lw,last+24-lh,lw,lh); }catch(e){}
+  try{ const lg=await logoT(T.LOGO_INK), lw=240, lh=ih(lg)*lw/iw(lg); g.drawImage(lg,790-lw,last+24-lh,lw,lh); }catch(e){}
   return jpegT(cv);
 }
 async function renderAll(){
@@ -1825,9 +1850,18 @@ function showOut(){
   const fn=safeName(S.info.product_name);
   showPages();
   $('pvSize').src=S.out.size; $('dlSize').href=S.out.size; $('dlSize').download=fn+'_사이즈표.png';
-  drawBannerUI(); drawBnrMine(); showBanners(); show('secOut');
+  drawBannerUI(); drawBnrMine(); showBanners(); drawTheme(); show('secOut');
   show('secUp'); c24Fill();
 }
+function drawTheme(){ document.querySelectorAll('#detTheme [data-theme]').forEach(b=>b.classList.toggle('on', b.dataset.theme===themeName())); }
+/* 상세 배경 바꾸면 상세·사이즈표·하단 정보를 그 배경으로 다시 그림 (크레딧 안 씀) */
+document.querySelectorAll('#detTheme [data-theme]').forEach(b=>b.onclick=()=>guard(async()=>{
+  if(themeName()===b.dataset.theme) return;
+  S.theme=b.dataset.theme; lsSet('eeun_detail_theme', S.theme); drawTheme();
+  if(S.out&&S.out.detail){ log(S.theme==='black'?'블랙 배경으로 다시 그리는 중…':'화이트 배경으로 다시 그리는 중…'); readForm();
+    S.out.detail=await renderDetail(); S.out.size=await renderSize(); await composePages(); showOut(); log('상세 배경 변경 완료','ok'); }
+  saveDraft(true);
+}));
 $('btnRender').onclick=()=>guard(renderAll);
 $('btnRerender').onclick=()=>guard(renderAll);
 
