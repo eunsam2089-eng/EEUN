@@ -1525,7 +1525,7 @@ async function renderJakjiCard(){
 
 /* ───────────── 상세페이지 구성: 내 이미지(포토샵) 1·2… → 디테일컷 → 사이즈표 ───────────── */
 S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[];
-const LAY_NAME={detail:'제품컷 (DETAIL POINT · 클로즈업 켜면 포함)', size:'사이즈표 (SIZE GUIDE)'};
+const LAY_NAME={detail:'제품컷 (클로즈업 켜면 포함)', size:'사이즈표 (SIZE GUIDE)'};
 function layoutList(){
   if(!Array.isArray(S.layout)) S.layout=['detail','size'];
   S.layout=S.layout.filter(k=>LAY_NAME[k] || (k.startsWith('img:') && S.myDet.some(m=>'img:'+m.key===k)));
@@ -1678,11 +1678,11 @@ function productBox(img, maxW, maxH){
   return cv;
 }
 /* ───────────── 사이트 상세 양식 — 피그마 '08 Site Detail Template'과 같은 숫자 (860 기준 → 1000px로 출력) ─────────────
-   A 양식(지금): DETAIL POINT. → 컬러별 정면(컬러 점)·사선 제품컷 → SIZE GUIDE → 상품 정보 + eeun archive 로고
+   A 양식(지금): (제목 없음, 위 여백 = 좌우 여백 70) 컬러별 정면(컬러 점)·사선 제품컷 → SIZE GUIDE → 상품 정보 + eeun archive 로고
    B 양식(나중): 클로즈업 체크하면 사선컷 다음에 860×1000 클로즈업이 들어감
    글씨는 전부 영문 대문자(Arimo = 헬베티카 대체), 한글 항목은 영어로 바꿔서 넣음 */
 const TPL={ K:1000/860, MX:70, BOX_W:720, BOX_H:900, BOX_BG:'#F0F0F0', DOT:36, DOT_OFF:24, CLOSE_W:860, CLOSE_H:1000,
-  TITLE_Y:96, FIRST:170, GAP:40, GAP_CLOSE:80, GAP_SIZE:180, GAP_INFO:140, PAD_BOTTOM:160, SIZE_H:960, ROW:56,
+  TITLE_Y:96, FIRST:70, GAP:40, GAP_CLOSE:80, GAP_SIZE:180, GAP_INFO:140, PAD_BOTTOM:160, SIZE_H:960, ROW:56,
   SG:{title:0, sub:40, rule:86, fx:70, fy:120, fw:720, fh:560, cap:700, ttop:750, head:774, val:812, tbot:868, n1:896, n2:920},
   INK:'#111111', GREY:'#8D9298', RULE:'#D5D8DB',
   FONT:'Arimo, "Helvetica Neue", Helvetica, Arial, "Noto Sans KR", sans-serif',
@@ -1815,7 +1815,7 @@ async function drawSizeBlockT(g, y0){
 function canvasT(h860){ applyTheme(); const cv=document.createElement('canvas'); cv.width=1000; cv.height=Math.round(h860*TPL.K); const g=cv.getContext('2d');
   g.fillStyle=TPL.BG; g.fillRect(0,0,cv.width,cv.height); g.scale(TPL.K,TPL.K); g.imageSmoothingQuality='high'; return {cv,g}; }
 function jpegT(cv){ let q=0.92, url=cv.toDataURL('image/jpeg',q); while(url.length*0.75>4.8e6 && q>0.6){ q-=0.08; url=cv.toDataURL('image/jpeg',q); } return url; }
-/** 제품컷 부분: DETAIL POINT. + 컬러별 정면(점)·사선 (+ 클로즈업 체크 시 B 양식) — 아래 180 여백 포함 */
+/** 제품컷 부분: 컬러별 정면(점)·사선 (+ 클로즈업 체크 시 B 양식) — 아래 180 여백 포함 */
 async function renderDetail(){
   const i=S.info, T=TPL; await fontsReady();
   const items=[];
@@ -1827,7 +1827,6 @@ async function renderDetail(){
   if(closes.length) H+=T.GAP_CLOSE+closes.length*T.CLOSE_H+(closes.length-1)*T.GAP;
   H+=T.GAP_SIZE;
   const {cv,g}=canvasT(H);
-  capsText(g,'DETAIL POINT.',430,T.TITLE_Y,22,{tr:0.18,anchor:'center'});
   let y=T.FIRST;
   items.forEach(it=>{ drawCutBoxT(g,it.img,T.MX,y,it.view);
     if(it.dot){ const r=T.DOT/2, cx=T.MX+T.DOT_OFF+r, cy=y+T.DOT_OFF+r; g.fillStyle=it.dot; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill(); g.strokeStyle='rgba(0,0,0,.10)'; g.lineWidth=1; g.stroke(); }
