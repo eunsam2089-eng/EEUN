@@ -2050,11 +2050,12 @@ async function c24Upload(){
   log(`카페24 상세 이미지 올리는 중… (${parts.length}장)`);
   const paths=[];
   for(const [k,b64] of parts.entries()){ paths.push(await run('api_c24UploadImage', S.code, b64)); if((k+1)%3===0||k===parts.length-1) log(`상세 이미지 ${k+1}/${parts.length}`); }
-  const html='<div style="text-align:center;">'+paths.map(p=>`<img src="${p}" style="max-width:100%;display:block;margin:0 auto;">`).join('')+'</div>';
+  // img에는 width 없이 style="max-width:100%"만 (원본 크기 그대로, 화면보다 클 때만 줄어듦). 이미지 사이 틈은 감싸는 div에서 없앰
+  const html='<div style="text-align:center;font-size:0;line-height:0;">'+paths.map(p=>`<img src="${p}" style="max-width:100%"><br>`).join('')+'</div>';
   const show1='F';   // 항상 진열안함·판매안함으로 등록 (확인 후 '진열하기')
   const req={ display:show1, selling:show1, product_name:name, supply_product_name:$('c24SupName').value.trim().slice(0,250), price, supply_price:supply,
     has_option:options.length?'T':'F', options, description:html,
-    separated_mobile_description:'T', mobile_description:html,   // 모바일 상세 '직접 등록' = 같은 이미지 원본 크기 그대로 (상세설명 동일로 두면 카페24가 모바일 이미지를 줄임)
+    separated_mobile_description:'F',   // 모바일 상품 상세설명 = '상품 상세설명 동일' (모바일용 따로 안 올림)
     add_category_no:[...C24.cats].map(n=>({category_no:Number(n), recommend:'F', new:'F'})), main:[...C24.mains].map(String) };
   const sc=$('c24SupCode').value.trim(); if(/^[A-Z0-9]{8}$/.test(sc)) req.supplier_code=sc;
   if(!options.length) delete req.options;
