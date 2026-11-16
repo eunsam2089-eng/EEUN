@@ -102,6 +102,7 @@
   .out img { width:100%; display:block; }
   #log { position:fixed; left:0; right:0; bottom:0; z-index:10; background:#111; color:#eee; font-size:12px; line-height:1.5; max-height:18vh; overflow:auto; padding:8px 14px calc(8px + env(safe-area-inset-bottom)); }
   #log:empty { display:none; }
+  #updBar { position:fixed; left:50%; transform:translateX(-50%); top:calc(10px + env(safe-area-inset-top)); z-index:30; background:#111; color:#fff; border:0; border-radius:999px; padding:11px 18px; font-size:14px; box-shadow:0 4px 16px rgba(0,0,0,.25); white-space:nowrap; }
   #log div.err { color:#ff9b93; } #log div.ok { color:#9be3ad; }
   .links a { display:block; color:var(--ink); margin:6px 0; word-break:break-all; }
   .c24disp { border:1px solid #ddd; border-radius:10px; padding:10px 12px; margin:8px 0 10px; font-size:14px; }
@@ -376,6 +377,7 @@
   <div id="sideList"></div>
 </aside>
 <div id="log"></div>
+<button id="updBar" class="hidden">새 버전 나왔어요 · 눌러서 적용</button>
 
 <script>
 /* ───────────── 공통 ───────────── */
@@ -449,7 +451,8 @@ $('btnLogin').onclick = async ()=>{
     show('secLogin', false); show('secInput'); show('btnSide');
     log('연결됨', 'ok');
     show('secUp'); await c24Return();
-    offerDraft();
+    await offerDraft();
+    const rid=lsGet('eeun_reopen'); if(rid){ lsSet('eeun_reopen',''); guard(()=>openWork({id:rid, where:'local'})); }
   }catch(e){ log('연결 실패: '+e.message,'err'); }
   $('btnLogin').disabled = false;
 };
@@ -1682,8 +1685,8 @@ function productBox(img, maxW, maxH){
    B 양식(나중): 클로즈업 체크하면 사선컷 다음에 860×1000 클로즈업이 들어감
    글씨는 전부 영문 대문자(Arimo = 헬베티카 대체), 한글 항목은 영어로 바꿔서 넣음 */
 const TPL={ K:1000/860, MX:70, BOX_W:720, BOX_H:900, BOX_BG:'#F0F0F0', DOT:36, DOT_OFF:24, CLOSE_W:860, CLOSE_H:1000,
-  TITLE_Y:96, FIRST:70, GAP:40, GAP_CLOSE:80, GAP_SIZE:180, GAP_INFO:140, PAD_BOTTOM:160, SIZE_H:960, ROW:56,
-  SG:{title:0, sub:40, rule:86, fx:70, fy:120, fw:720, fh:560, cap:700, ttop:750, head:774, val:812, tbot:868, n1:896, n2:920},
+  TITLE_Y:96, FIRST:70, GAP:40, GAP_CLOSE:80, GAP_SIZE:180, GAP_INFO:140, PAD_BOTTOM:160, SIZE_H:836, ROW:56,
+  SG:{title:0, sub:40, rule:86, fx:150, fy:120, fw:560, fh:436, cap:576, ttop:626, head:650, val:688, tbot:744, n1:772, n2:796},   // 도식화 영역 78% 크기 (가운데)
   INK:'#111111', GREY:'#8D9298', RULE:'#D5D8DB',
   FONT:'Arimo, "Helvetica Neue", Helvetica, Arial, "Noto Sans KR", sans-serif',
   LOGO_INK:'assets/logo_ink.png', LOGO_EEUN:'assets/logo_eeun.png' };
@@ -2105,7 +2108,22 @@ async function guard(fn){
   try{ await fn(); }catch(e){ log('오류: '+(e&&e.message||e),'err'); }
   finally{ S.busy=false; document.querySelectorAll('button').forEach(b=>b.disabled=false); wake(false); }
 }
-if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+/* 앱 업데이트: 켜져 있는 동안에도 새 버전 확인 → 위에 "새 버전" 버튼 → 누르면 지금 작업 저장하고 다시 열기 */
+if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    const chk=()=>reg.update().catch(()=>{});
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') chk(); });
+    setInterval(chk, 5*60*1000);
+  }).catch(()=>{});
+  let ctl=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(!ctl){ ctl=true; return; } show('updBar'); });
+}
+$('updBar').onclick=async()=>{
+  if(S.busy){ log('지금 작업이 끝나면 다시 눌러주세요','err'); return; }
+  $('updBar').textContent='적용 중…';
+  try{ if(S.init && S.workId){ await writeLocal(snapshot(), false); lsSet('eeun_reopen', S.workId); } }catch(e){}
+  location.reload();
+};
 </script>
 </body>
 </html>
