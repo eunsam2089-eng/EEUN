@@ -1528,13 +1528,14 @@ async function renderJakjiCard(){
 
 /* ───────────── 상세페이지 구성: 내 이미지(포토샵) 1·2… → 디테일컷 → 사이즈표 ───────────── */
 S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[];
-const LAY_NAME={detail:'제품컷 (클로즈업 켜면 포함)', size:'사이즈표 (SIZE GUIDE)'};
+const LAY_NAME={detail:'제품컷 (클로즈업 켜면 포함)', size:'사이즈표 (SIZE GUIDE)', info:'상품 정보 (이름·컬러·소재 + eeun archive)'};
 function layoutList(){
   if(!Array.isArray(S.layout)) S.layout=['detail','size'];
   S.layout=S.layout.filter(k=>LAY_NAME[k] || (k.startsWith('img:') && S.myDet.some(m=>'img:'+m.key===k)));
   const firstAuto=S.layout.findIndex(k=>!k.startsWith('img:'));
   S.myDet.forEach(m=>{ const k='img:'+m.key; if(!S.layout.includes(k)){ const at=S.layout.findIndex(x=>!x.startsWith('img:')); S.layout.splice(at<0?S.layout.length:at,0,k); } });
   ['detail','size'].forEach(k=>{ if(!S.layout.includes(k)) S.layout.push(k); });
+  if(!S.layout.includes('info')){ S.layout.push('info'); S.layoutOff.info=true; }   // 맨 아래 상품 정보: 기본은 안 넣음 (체크하면 들어감)
   return S.layout;
 }
 function drawLayout(){
@@ -1574,9 +1575,9 @@ async function composePages(){
     if(S.layoutOff[k]) continue;
     if(k==='detail') await add(S.out.detail);
     else if(k==='size') await add(S.out.sizeBlock||S.out.size);
+    else if(k==='info') await add(S.out.footer);
     else { const m=S.myDet.find(x=>'img:'+x.key===k); if(m) segs.push({im:m.img, h:Math.round(ih(m.img)*1000/iw(m.img))}); }
   }
-  if(S.out.footer) await add(S.out.footer);   // 맨 아래 상품 정보 + 로고
   const MAXH=7600, pages=[]; let cur=[], h=0;
   segs.forEach(sg=>{ if(cur.length && h+sg.h>MAXH){ pages.push(cur); cur=[]; h=0; } cur.push(sg); h+=sg.h; });
   if(cur.length) pages.push(cur);
