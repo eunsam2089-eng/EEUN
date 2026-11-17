@@ -520,7 +520,7 @@ function snapshot(){
     info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
     cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, bnrColorMade:colorBannersMade(), layout:S.layout, layoutOff:S.layoutOff, theme:S.theme||'white',
     myDet:(S.myDet||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), bnrMine:(S.bnrMine||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), rendered:!!(S.out&&S.out.detail), saved:S.saved, c24:S.c24||null,
-    labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
+    labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,done:L.done||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
   s.name=(s.info&&s.info.product_name)||(s.txt||'').split('\n')[0].slice(0,28)||'이름 없는 작업';
   s.status=statusOf(s); s.photos=s.images.length; s.thumb=thumbOf();
   return s;
@@ -840,7 +840,7 @@ $('f_url').addEventListener('input',()=>{ const ty=typeFromText($('f_url').value
 $('useCrops').addEventListener('change',()=>saveDraft());
 $('hq').addEventListener('change',()=>saveDraft());
 $('withBack').addEventListener('change',()=>{ drawCuts(); saveDraft(); });
-$('f_made').onchange=()=>{ const on=$('f_made').checked; show('labelsBox',on); if(on){ $('f_jakji').checked=true; show('jakjiBox',true); drawLabelLib(); drawLabelSel(); } };
+$('f_made').onchange=()=>{ const on=$('f_made').checked; show('labelsBox',on); if(on){ $('f_jakji').checked=true; show('jakjiBox',true); drawLabelLib(); drawLabelSel(); } if(S.labels.length) labelsChanged(); };
 $('f_jakji').onchange=()=>show('jakjiBox',$('f_jakji').checked);
 
 function drawColors(){
@@ -884,8 +884,9 @@ function drawCuts(){
     vs.forEach(v=>{
       const st=(S.cuts[ci]||{})[v];
       const s=document.createElement('div'); s.className='slot';
-      s.innerHTML = `<span class="tag">${VNAME[v]}</span>` +
-        (st && st.loading ? '<div class="spin"></div>' : st && st.img ? `<img src="${st.img.src}">` : '없음') +
+      const lab = st && st.img && labelsOnView(v);
+      s.innerHTML = `<span class="tag">${VNAME[v]}${lab?' · 라벨':''}</span>` +
+        (st && st.loading ? '<div class="spin"></div>' : st && st.img ? `<img src="${lab?composeCut(st.img,v).toDataURL('image/png'):st.img.src}">` : '없음') +
         `<div class="acts"><button class="sm" data-a="gen">${st&&st.img?'다시':'생성'}</button><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 8px;font-size:13px;background:#fff;cursor:pointer">내 사진<input type="file" accept="image/*" style="display:none"></label></div>`;
       s.querySelector('[data-a=gen]').onclick=()=>guard(()=>genCut(ci,v));
       s.querySelector('input[type=file]').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; const p=await prepImage(f); S.cuts[ci]=S.cuts[ci]||{}; S.cuts[ci][v]={img:p.full.img, mime:'image/jpeg', b64:p.full.dataUrl.split(',')[1]}; drawCuts(); saveDraft(); };
@@ -1255,9 +1256,24 @@ async function drawLabelLib(){
       if(k>=0) S.labels.splice(k,1);
       else { if(S.labels.length>=3){ log('라벨은 최대 3개까지 고를 수 있어요','err'); return; }
         S.labels.push({id:l.id,name:l.name,dataUrl:l.dataUrl,img:l.img,xr:.5,yr:Math.min(.12+S.labels.length*.12,.9),wcm:3,rot:0,pos:'',method:'봉제',placed:false}); }
-      drawLabelLib(); drawLabelSel(); saveDraft(); };
+      drawLabelLib(); drawLabelSel(); saveDraft(); labelsChanged(); };
     box.appendChild(d);
   });
+}
+/** 라벨을 바꾸면 제품컷 칸·상세페이지·배너에 바로 반영 */
+let labT=null;
+function labelsChanged(){
+  clearTimeout(labT);
+  labT=setTimeout(async()=>{
+    drawCuts();
+    if(!(S.info && S.out && S.out.detail) || S.busy) return;
+    try{
+      S.out.detail=await renderDetail(); await composePages(); showPages();
+      if((S.out.banners||[]).length) await makeBanners(false, !colorBannersMade());
+      if(typeof drawC24Imgs==='function') drawC24Imgs();
+      log('라벨 반영 — 상세페이지·배너 다시 그렸어요','ok'); saveDraft(true);
+    }catch(e){ log('라벨 반영 오류: '+e.message,'err'); }
+  },300);
 }
 function drawLabelSel(){
   const box=$('labelSel'); box.innerHTML='';
@@ -1270,7 +1286,7 @@ function drawLabelSel(){
     const inp=d.querySelector('input'), sel=d.querySelector('select'); const [bPlace,bDel]=d.querySelectorAll('button');
     inp.oninput=()=>{ L.pos=inp.value; saveDraft(); }; sel.onchange=()=>{ L.method=sel.value; saveDraft(); };
     bPlace.onclick=()=>openLabelEditor(k);
-    bDel.onclick=()=>{ S.labels.splice(k,1); drawLabelLib(); drawLabelSel(); saveDraft(); };
+    bDel.onclick=()=>{ S.labels.splice(k,1); drawLabelLib(); drawLabelSel(); saveDraft(); labelsChanged(); };
     box.appendChild(d);
   });
 }
@@ -1340,8 +1356,13 @@ const labStep=d=>{ const L=S.labels[LE.k]; L.wcm=Math.round(Math.min(Math.max(L.
 $('labMinus').onclick=()=>labStep(-0.1); $('labPlus').onclick=()=>labStep(0.1);
 $('labRot').oninput=()=>{ const L=S.labels[LE.k], r=Number($('labRot').value); if(LE.view==='front') L.rot=r; else if(L.v&&L.v[LE.view]) L.v[LE.view].rot=r; paintLab(); };
 document.querySelectorAll('#labViews button').forEach(b=>b.onclick=()=>openLabelEditor(LE.k, b.dataset.v));
-$('labOff').onclick=()=>{ const L=S.labels[LE.k]; if(L.v) delete L.v[LE.view]; show('labOff',false); paintLab(); };
-$('labOk').onclick=()=>{ S.labels[LE.k].placed=true; show('labM',false); drawLabelSel(); saveDraft(); };
+$('labOff').onclick=()=>{ const L=S.labels[LE.k]; if(L.v) delete L.v[LE.view]; L.done=L.done||{}; L.done[LE.view]=true; show('labOff',false); paintLab(); };
+$('labOk').onclick=()=>{
+  const L=S.labels[LE.k]; L.placed=true; L.done=L.done||{}; L.done[LE.view]=true;
+  const order=['front','side'].concat(showBack()?['back']:[]), next=order.slice(order.indexOf(LE.view)+1).find(v=>((S.cuts[0]||{})[v]||{}).img && !L.done[v] && !(L.v&&L.v[v]));
+  if(next){ L.v=L.v||{}; const P=posOf(L,LE.view); L.v[next]={xr:P.xr, yr:P.yr, rot:P.rot||0}; openLabelEditor(LE.k, next);
+    log(`${VNAME[next]} 컷에도 같은 자리에 붙였어요 — 위치 맞추고 [적용] (안 보이는 라벨이면 "이 컷에서 빼기")`); return; }
+  show('labM',false); drawLabelSel(); saveDraft(); labelsChanged(); };
 
 /* ───────────── 작업지시서 (작지) ───────────── */
 function wrapText(g,text,x,y,maxW,lh){
