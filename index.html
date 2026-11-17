@@ -744,12 +744,20 @@ async function restoreDraft(d, id){
 async function newProduct(){ saveDraft(true); await ensureSynced(); resetWork(); S.workId=null; log('새 상품 시작'); renderWorks(); window.scrollTo(0,0); }
 
 /* ───────────── 분석 ───────────── */
+/** 분석용 사진: 길쭉한 캡처(사이즈표·상세 캡처)는 글씨가 읽히게 크게 (일반 사진은 GPT가 어차피 줄여서 그대로) */
+async function anaImg(x){
+  const W=x.full.w||iw(x.full.img), H=x.full.h||ih(x.full.img), r=Math.max(W,H)/Math.min(W,H);
+  if(r<1.45 || Math.max(W,H)<=1300) return x.api;
+  const im=x.full.img||await loadImg(x.full.dataUrl), s=Math.min(1,2048/Math.max(W,H)), cv=document.createElement('canvas');
+  cv.width=Math.round(W*s); cv.height=Math.round(H*s); cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+  return { mime:'image/jpeg', b64: cv.toDataURL('image/jpeg',.88).split(',')[1] };
+}
 async function analyze(){
   const text=$('txt').value.trim();
   if(!text && !S.images.length) throw new Error('텍스트나 사진을 넣어주세요.');
   if(S.saved){ S.workId=null; S.saved=null; $('links').innerHTML=''; S.images.forEach(im=>{ im.fid=null; }); } // 저장된 작업은 그대로 두고 새 기록으로
   log(`GPT 분석 중… (사진 ${S.images.length}장)`);
-  const info = await run('api_analyze', S.code, text, S.images.map(x=>x.api));
+  const info = await run('api_analyze', S.code, text, await Promise.all(S.images.map(anaImg)));
   normalizeInfo(info); fixPriceRules(info, text);
   S.info = info; S.cuts = {}; S.out = {}; S.line = null;
   S.crops = defaultCrops(info); $('useCrops').checked=false;
@@ -779,14 +787,21 @@ function typeFromText(t){ t=String(t||'');
 const isCN=ty=>ty==='1688'||ty==='타오바오';
 /** 분석 결과 가격 정리: 글에 '판매가'라고 쓴 게 아니면 적힌 가격은 원가로 */
 function fixPriceRules(i, text){
-  const ty=typeFromText((i.supplier&&i.supplier.url)||'')||typeFromText(text); if(ty) i.type=ty;
+  const ty=typeFromText(text)||typeFromText((i.supplier&&i.supplier.url)||''); if(ty) i.type=ty;   // 사용자가 붙인 링크가 우선
   if(i.user_sale_price && !/판매\s*가|팔\s*가격|소비자\s*가/.test(text||'')){
     if(!Number(i.price.amount)){ i.price.amount=i.user_sale_price; i.price.currency='KRW'; }
     i.user_sale_price=null;
   }
   if(i.type==='동대문') i.price.currency='KRW'; // 동대문은 원화
   else if(i.price.currency!=='CNY' && Number(i.price.amount)>0 && Number(i.price.amount)<5000) i.price.currency='CNY';   // 중국 상품인데 금액이 작으면 위안
-  if(!sizesOf(i.sale_size).multi){ const ds=sizesInText(text); if(ds.length>1){ i.sale_size=ds.join(' / '); } }   // 글에 S, M, L처럼 적었으면 그 사이즈로
+  if(!sizesOf(i.sale_size).multi){
+    const ds=sizesInText(text);   // 글에 S, M, L처럼 적었으면 그 사이즈로
+    if(ds.length>1) i.sale_size=ds.join(' / ');
+    else if(!/프리|free/i.test(text||'')){   // 글에 프리라고 안 했고 캡처 사이즈표(by_size)에 여러 사이즈가 있으면 그 사이즈로
+      const ks=[]; (i.measurements||[]).forEach(m=>Object.keys(m.by_size||{}).forEach(k=>{ if(!ks.includes(k)) ks.push(k); }));
+      if(ks.length>1) i.sale_size=ks.join(' / ');
+    }
+  }
 }
 /** 판매 사이즈 문자열 → 목록 (FREE·한 개면 multi=false) */
 function sizesOf(str){ const a=String(str||'').split(/\s*[\/,·|]\s*|\s+/).map(x=>x.trim()).filter(Boolean); const list=a.length?a:['FREE']; return Object.assign(list,{multi:list.length>1 && !/^free$/i.test(list[0])}); }
@@ -808,6 +823,9 @@ function normalizeInfo(i){
   if(!i.sale_colors.length) i.sale_colors=[{name:'블랙',en:'BLACK',hex:'#111111'}];
   i.sale_colors.forEach(c=>{ if(!/^#[0-9a-f]{6}$/i.test(c.hex||'')) c.hex='#777777'; });
   i.type = ['동대문','타오바오'].includes(i.type) ? i.type : '1688';
+  const szKey=x=>String(x||'').replace(/[码號号]|码数|사이즈|size/gi,'').trim().toUpperCase();
+  i.measurements.forEach(m=>{ if(m.by_size && typeof m.by_size==='object'){ const o={}; Object.entries(m.by_size).forEach(([k,v])=>{ if(String(v||'').trim()) o[szKey(k)]=String(v).trim(); }); m.by_size=o; } });
+  if(Array.isArray(i.sizes)) i.sizes=i.sizes.map(szKey).filter(Boolean);
   if(Array.isArray(i.sizes) && i.sizes.length>1) i.sale_size=i.sizes.join(' / ');
   i.sale_size = i.sale_size || 'FREE';
   const sz=sizesOf(i.sale_size);
