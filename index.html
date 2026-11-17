@@ -2024,7 +2024,7 @@ function c24LinksHtml(no){
   const disp = d==='F' ? `<div class="c24disp"><b>미진열</b> · 쇼핑몰에 안 보여요. 관리자에서 확인 끝나면 →<div class="btns"><button class="pri" data-c24disp="T">진열하기 (진열·판매 켜기)</button></div></div>`
     : d==='T' ? `<div class="c24disp"><b>진열 중</b> · 쇼핑몰에 보여요<div class="btns"><button class="sm" data-c24disp="F">미진열로 되돌리기</button></div></div>` : '';
   const ad=S.c24&&S.c24.product_no==no&&S.c24.ad ? `<a href="${S.c24.ad.url}" target="_blank">📁 광고 폴더 (${esc(S.c24.ad.week||'')})</a>` : '';
-  return disp+ad+`<a href="${C24_SHOP}/disp/admin/shop1/product/productmodify?product_no=${no}" target="_blank">🛠 카페24 관리자에서 열기 (${no})</a><a href="${C24_FRONT}/product/detail.html?product_no=${no}" target="_blank">🛍 쇼핑몰 상품 페이지</a><a href="https://mp.cafe24.com/mp/product/front/detail?product_no=${no}" target="_blank">🔁 마켓플러스 (에이블리·큐텐 전송)</a>`;
+  return disp+ad+`<a href="${C24_SHOP}/disp/admin/shop1/product/ProductRegister?product_no=${no}" target="_blank">🛠 카페24 관리자에서 열기 (${no})</a><a href="${C24_FRONT}/product/detail.html?product_no=${no}" target="_blank">🛍 쇼핑몰 상품 페이지</a><a href="https://mp.cafe24.com/mp/product/front/detail?product_no=${no}" target="_blank">🔁 마켓플러스 (에이블리·큐텐 전송)</a>`;
 }
 /** 긴 이미지를 가로 1000px 이하 JPEG 조각들로 (카페24 에디터 업로드용) */
 async function c24Slices(src, maxH){
@@ -2058,12 +2058,17 @@ async function c24Upload(){
   const show1='F';   // 항상 진열안함·판매안함으로 등록 (확인 후 '진열하기')
   const req={ display:show1, selling:show1, product_name:name, supply_product_name:$('c24SupName').value.trim().slice(0,250), price, supply_price:supply,
     has_option:options.length?'T':'F', options, description:html,
-    separated_mobile_description:'F',   // 모바일 상품 상세설명 = '상품 상세설명 동일' (모바일용 따로 안 올림)
+    // 모바일 상세 = PC와 똑같은 내용을 '직접 등록'으로. '상품 상세설명 동일'로 두면 카페24가 모바일 이미지를 기본 640px로 줄이는데,
+    // 그 '모바일 상품이미지 사이즈 설정'은 API에 없는 항목이라 자동으로 원본을 고를 수 없음 → 직접 등록이면 그 설정 자체가 안 걸려서 원본 그대로
+    separated_mobile_description:'T', mobile_description:html,
     add_category_no:[...C24.cats].map(n=>({category_no:Number(n), recommend:'F', new:'F'})), main:[...C24.mains].map(String) };
   const sc=$('c24SupCode').value.trim(); if(/^[A-Z0-9]{8}$/.test(sc)) req.supplier_code=sc;
   if(!options.length) delete req.options;
   log('카페24 상품 등록 중…');
   const P=await run('api_c24CreateProduct', S.code, req);
+  // 모바일 상세 '직접 등록' + PC와 같은 내용 (등록 API가 이 설정을 안 받는 경우가 있어 수정 API로 한 번 더) → 모바일 이미지 원본 크기
+  try{ await run('api_c24SetMobile', S.code, P.product_no, html); log('모바일 상세: PC와 같은 내용 · 이미지 원본 크기','ok'); }
+  catch(e){ log('모바일 상세 설정 실패 — 관리자에서 \'모바일 상품이미지 사이즈 설정\'을 원본으로 바꿔주세요: '+e.message,'err'); }
   log('대표이미지 올리는 중…');
   const repB64=(await c24Slices(rep.url, 100000))[0];
   try{ await run('api_c24SetImage', S.code, P.product_no, repB64); }catch(e){ log('대표이미지 등록 실패 — 관리자에서 직접 넣어주세요: '+e.message,'err'); }
