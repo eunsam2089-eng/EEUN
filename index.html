@@ -18,14 +18,27 @@
 <style>
   :root { --ink:#111; --sub:#6b6b6b; --line:#e3e3e3; --panel:#f4f4f4; --accent:#111; --ok:#2f7a45; --err:#b3261e; }
   * { box-sizing:border-box; }
-  body { margin:0; background:#fff; color:var(--ink); font:15px/1.55 "Noto Sans KR", system-ui, sans-serif; }
-  .wrap { max-width:760px; margin:0 auto; padding:calc(20px + env(safe-area-inset-top)) 16px calc(20vh + 40px); }
-  header { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:6px 0 18px; border-bottom:1px solid var(--line); margin-bottom:18px; }
-  header h1 { font:800 20px/1 Inter, "Noto Sans KR", sans-serif; letter-spacing:.02em; margin:0; white-space:nowrap; }
-  header .st { color:var(--sub); font-size:11px; text-align:right; line-height:1.4; }
-  section { border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
-  section h2 { font-size:15px; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+  body { margin:0; background:#f5f5f4; color:var(--ink); font:15px/1.55 "Noto Sans KR", system-ui, sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:16px 16px calc(14vh + 40px); }
+  /* 위 고정 바: 이름 · 저장 상태 · 새 상품 · 작업 목록 / 단계 이동 */
+  #topbar { position:sticky; top:0; z-index:20; background:rgba(255,255,255,.96); backdrop-filter:blur(8px); border-bottom:1px solid #e8e8e8; padding-top:env(safe-area-inset-top); }
+  #topbar .in { max-width:760px; margin:0 auto; padding:10px 16px 0; }
+  #topbar .r1 { display:flex; align-items:center; gap:8px; min-height:36px; }
+  #topbar .brand { font:800 17px/1 Inter, "Noto Sans KR", sans-serif; letter-spacing:.04em; }
+  #topName { font-size:14px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1; }
+  #syncSt { font-size:11px; color:#999; white-space:nowrap; }
+  @media (max-width:600px){ #syncSt { display:none; } #topbar .brand { font-size:15px; } #topName { font-size:13px; } }
+  #topbar button { padding:7px 12px; font-size:13px; }
+  #steps { display:flex; gap:4px; overflow-x:auto; padding:8px 0 10px; scrollbar-width:none; }
+  #steps::-webkit-scrollbar { display:none; }
+  #steps a { flex:none; font-size:13px; color:#555; text-decoration:none; padding:5px 11px; border-radius:999px; background:#f1f1f1; cursor:pointer; white-space:nowrap; }
+  #steps a b { font-weight:700; margin-right:4px; }
+  #steps a.on { background:#111; color:#fff; }
+  #steps a.off { color:#c2c2c2; background:#f7f7f7; cursor:default; }
+  section { background:#fff; border:1px solid #e9e9e9; border-radius:14px; padding:18px 16px; margin-bottom:12px; scroll-margin-top:110px; }
+  section h2 { font-size:16px; margin:0 0 6px; display:flex; align-items:center; gap:8px; }
   section h2 .n { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--ink); color:#fff; font-size:12px; }
+  .gl { font-size:12px; font-weight:700; color:#111; margin:18px 0 0; padding-top:14px; border-top:1px solid #efefef; }
   .hidden { display:none !important; }
   label { display:block; font-size:12px; color:var(--sub); margin:10px 0 4px; }
   input[type=text], input[type=number], input[type=password], textarea, select {
@@ -100,7 +113,10 @@
   .out { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .out .pv { background:var(--panel); border-radius:8px; max-height:520px; overflow:auto; }
   .out img { width:100%; display:block; }
-  #log { position:fixed; left:0; right:0; bottom:0; z-index:10; background:#111; color:#eee; font-size:12px; line-height:1.5; max-height:18vh; overflow:auto; padding:8px 14px calc(8px + env(safe-area-inset-bottom)); }
+  /* 진행 기록: 평소엔 마지막 한 줄만, 누르면 전체 */
+  #log { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(12px + env(safe-area-inset-bottom)); width:min(calc(100vw - 24px),560px); z-index:15; background:#111; color:#eee; font-size:12.5px; line-height:1.55; border-radius:12px; padding:8px 14px; max-height:46vh; overflow:auto; cursor:pointer; box-shadow:0 6px 22px rgba(0,0,0,.2); }
+  #log:not(.open) > div:not(:last-child) { display:none; }
+  #log:not(.open) > div:last-child { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #log:empty { display:none; }
   #updBar { position:fixed; left:50%; transform:translateX(-50%); top:calc(10px + env(safe-area-inset-top)); z-index:30; background:#111; color:#fff; border:0; border-radius:999px; padding:11px 18px; font-size:14px; box-shadow:0 4px 16px rgba(0,0,0,.25); white-space:nowrap; }
   #log div.err { color:#ff9b93; } #log div.ok { color:#9be3ad; }
@@ -117,17 +133,12 @@
   .work .wn { font-weight:500; font-size:14px; }
   .work .wb { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
   .work .lnk { border:1px solid #111; border-radius:8px; padding:5px 10px; font-size:13px; color:#111; text-decoration:none; background:#fff; }
-  #side { position:fixed; top:0; right:0; bottom:0; width:min(92vw,420px); background:#fff; z-index:40; overflow:auto; padding:16px 16px 40vh; box-shadow:-8px 0 30px rgba(0,0,0,.15); }
+  #side { position:fixed; top:0; right:0; bottom:0; width:min(92vw,420px); background:#fff; z-index:40; overflow:auto; padding:calc(16px + env(safe-area-inset-top)) 16px 30vh; box-shadow:-8px 0 30px rgba(0,0,0,.15); }
+  #status { font-size:11px; color:#999; line-height:1.5; margin-top:18px; padding-top:10px; border-top:1px solid #eee; }
   #sideBg { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:39; }
   .sideHead { display:flex; align-items:center; gap:6px; }
   #side .work { border-top:1px solid #eee; }
   .tag3 { font-size:11px; background:#fde8d7; color:#9a4a12; border-radius:9px; padding:1px 7px; vertical-align:middle; }
-  body.wide #side { display:block !important; box-shadow:none; border-left:1px solid #e5e5e5; padding-bottom:30vh; }
-  body.wide #sideBg, body.wide #sideClose { display:none !important; }
-  body.wide #side { width:420px; }
-  body.wide { padding-right:421px; }
-  body.wide .wrap { max-width:880px; }
-  body.wide #log { right:421px; }
   .c24list { max-height:240px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:6px 10px; margin-top:6px; }
   .c24list label { display:flex; gap:8px; align-items:center; margin:3px 0; font-size:13px; color:var(--ink); }
   .c24list input { width:auto; }
@@ -137,7 +148,6 @@
   .c24imgs img { width:100%; aspect-ratio:3/4; object-fit:cover; display:block; background:#f4f4f4; }
   .c24imgs .ck { position:absolute; top:4px; left:4px; background:#111; color:#fff; border-radius:9px; font-size:11px; padding:0 6px; }
   body #lineM, body #labM, body #cropM { z-index:50; user-select:none; -webkit-user-select:none; }
-  body.wide #btnSide { display:none !important; }
   .tag2 { font-size:11px; background:#111; color:#fff; border-radius:9px; padding:1px 7px; vertical-align:middle; }
   .lablib { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px; }
   .lab { border:1.5px solid #ddd; border-radius:8px; padding:6px; text-align:center; font-size:11px; line-height:1.3; cursor:pointer; background:#fff; word-break:keep-all; }
@@ -163,12 +173,16 @@
 </style>
 </head>
 <body>
+<div id="topbar"><div class="in">
+  <div class="r1">
+    <span class="brand">EEUN</span><span id="topName">상품 등록</span>
+    <span id="syncSt"></span>
+    <button class="hidden" id="btnNew">새 상품</button>
+    <button class="pri hidden" id="btnSide">작업 목록</button>
+  </div>
+  <nav id="steps" class="hidden"><a data-s="secInput"><b>1</b>입력</a><a data-s="secReview"><b>2</b>정보</a><a data-s="secCuts"><b>3</b>제품컷</a><a data-s="secOut"><b>4</b>상세페이지</a><a data-s="secUp"><b>5</b>카페24</a></nav>
+</div></div>
 <div class="wrap">
-  <header>
-    <h1>EEUN 상품 등록</h1>
-    <div style="display:flex;align-items:center;gap:8px"><div class="st" id="status">연결 전</div><button class="sm hidden" id="btnSide">☰ 작업</button></div>
-  </header>
-  <div class="muted" id="syncSt" style="margin:-10px 0 12px;font-size:11px;min-height:14px"></div>
 
   <section id="secLogin">
     <h2><span class="n">0</span>접속</h2>
@@ -185,39 +199,26 @@
   <section id="secInput" class="hidden">
     <div id="works" class="hidden"></div>
     <h2><span class="n">1</span>상품 입력</h2>
-    <label>1688 링크·공유문구, 발주 사이즈, 판매 컬러/사이즈, 라벨 지시 등 평소처럼 적기</label>
+    <label>링크·메모 (발주 사이즈, 판매 컬러·사이즈, 라벨 지시 등 평소처럼)</label>
     <textarea id="txt" placeholder="예) 【...스웨이드 숏 가죽 자켓...】 https://qr.1688.com/s/xxxx&#10;Medium 사이즈로 할 거고 컬러는 카키 원컬러, 공급처 사이즈 M인데 우리는 프리사이즈로 판매"></textarea>
-    <label>사진 (공급처 캡처: 옵션·가격·사이즈표 + 제품/마네킹/착용 사진)</label>
-    <label class="pick">사진 추가 (여러 장 선택 가능)<input type="file" id="files" accept="image/*" multiple></label>
+    <label>사진 (옵션·가격·사이즈표 캡처 + 제품 사진)</label>
+    <label class="pick">사진 추가<input type="file" id="files" accept="image/*" multiple></label>
     <div class="thumbs" id="thumbs"></div>
     <div class="btns">
       <button class="pri" id="btnAuto">자동으로 끝까지</button>
       <button id="btnAnalyze">분석만 하기</button>
-      <button id="btnNew" class="sm" style="border:0;text-decoration:underline">새 상품으로 비우기</button>
     </div>
-    <p class="muted">자동: 분석 → 제품컷 생성 → 상세페이지·사이즈표 → 드라이브·샘플시트 저장까지 한 번에. 중간에 검토하려면 "분석만 하기".</p>
+    <p class="muted" style="margin:8px 0 0">자동으로 끝까지 = 분석 → 제품컷 → 상세페이지 → 드라이브 저장까지 한 번에</p>
   </section>
 
   <section id="secReview" class="hidden">
-    <h2><span class="n">2</span>검토·수정</h2>
+    <h2><span class="n">2</span>상품 정보</h2>
     <label>상품명</label><input type="text" id="f_name">
-    <label>영문 상품명 <span class="muted">(상세 이미지 맨 아래 · 비우면 이름 줄 없이 들어가요)</span></label><input type="text" id="f_nameEn" placeholder="예: SUEDE FUR-TRIM SHORT MUSTANG">
-    <label>영문 디자인 문구 <span class="muted">(복사해서 피그마·상세에 붙여넣기용 · 이미지엔 안 들어가요)</span></label><textarea id="f_descEn" rows="6" placeholder="LUXURIOUS FAUX FUR JACKET WITH AN OVERSIZED SHAWL COLLAR, … AVAILABLE IN CLASSIC BLACK AND SOFT IVORY.&#10;“A TOUCH OF WARMTH,&#10;A STATEMENT OF STYLE.”&#10;— ON THE DETAILS"></textarea>
-    <div class="btns" style="margin-top:6px"><button class="sm pri" data-copyen>영문 문구 복사</button><button class="sm" id="btnDescEn">다시 쓰기</button></div>
+    <label>영문 상품명</label><input type="text" id="f_nameEn" placeholder="예: SUEDE FUR-TRIM SHORT MUSTANG">
     <div class="row">
       <div><label>유형</label><select id="f_type"><option>1688</option><option>타오바오</option><option>동대문</option></select></div>
       <div><label>판매 사이즈</label><input type="text" id="f_saleSize"></div>
     </div>
-    <div class="chk"><input type="checkbox" id="f_made"><span>EEUN MADE (로고·라벨 부착 상품)</span></div>
-    <div id="labelsBox" class="hidden">
-      <label>라벨 고르기 (탭해서 선택, 최대 3개)</label>
-      <div class="lablib" id="labelLib"><div class="muted">라벨 불러오는 중…</div></div>
-      <div id="labelSel"></div>
-      <p class="muted">"위치·크기 정하기"로 정면 제품컷 위에 놓으면 실측 비율대로 들어가요. 기본 실물 가로 4cm 이하, 필요하면 10cm까지 키울 수 있어요.</p>
-    </div>
-    <div class="chk"><input type="checkbox" id="f_jakji"><span>작지 뽑기 (작업지시서 이미지 + 작지 시트 행)</span></div>
-    <div id="jakjiBox" class="hidden"><label>작지 메모 (공장 전달 사항)</label><textarea id="f_jakjiMemo" placeholder="예) 기존 라벨 제거, 세탁라벨 교체, 종이 행택 부착 → 비닐 포장 후 출고"></textarea></div>
-
     <details class="fold" id="foldSup"><summary>공급처 <span class="sum" id="sumSup"></span></summary><div class="fb">
     <div class="row">
       <div><label>공급처</label><input type="text" id="f_sup"></div>
@@ -230,6 +231,7 @@
     </div>
     </div></details>
 
+    <div class="gl">가격</div>
     <div class="row3">
       <div><label>원가 통화</label><select id="f_cur"><option value="CNY">위안 (CNY)</option><option value="KRW">원 (KRW)</option></select></div>
       <div><label>원가 금액</label><input type="number" id="f_amt" step="0.01"></div>
@@ -241,6 +243,7 @@
     </div>
     <div class="price" id="priceBox"></div>
 
+    <div class="gl">컬러 · 실측</div>
     <label>판매 컬러 (이름 / 영문 / 색)</label>
     <div class="list" id="colors"></div>
     <button class="sm" id="addColor">+ 컬러</button>
@@ -248,6 +251,22 @@
     <label>실측 (단면 cm, 확인된 값만)</label>
     <div class="list" id="meas"></div>
     <button class="sm" id="addMeas">+ 항목</button>
+
+    <div class="gl">라벨 · 작지</div>
+    <div class="chk"><input type="checkbox" id="f_made"><span>EEUN MADE (로고·라벨 부착 상품)</span></div>
+    <div id="labelsBox" class="hidden">
+      <label>라벨 고르기 (탭해서 선택, 최대 3개)</label>
+      <div class="lablib" id="labelLib"><div class="muted">라벨 불러오는 중…</div></div>
+      <div id="labelSel"></div>
+      <p class="muted">라벨마다 "위치·크기 정하기"에서 붙일 컷(정면·사선·뒷면)을 골라요.</p>
+    </div>
+    <div class="chk"><input type="checkbox" id="f_jakji"><span>작지 뽑기 (작업지시서 이미지 + 작지 시트 행)</span></div>
+    <div id="jakjiBox" class="hidden"><label>작지 메모 (공장 전달 사항)</label><textarea id="f_jakjiMemo" placeholder="예) 기존 라벨 제거, 세탁라벨 교체, 종이 행택 부착 → 비닐 포장 후 출고"></textarea></div>
+
+    <details class="fold" id="foldEn"><summary>영문 디자인 문구 <span class="sum">피그마에 붙여넣기용</span></summary><div class="fb">
+    <label>복사해서 피그마·상세에 붙여넣기 (이미지엔 안 들어가요)</label><textarea id="f_descEn" rows="6" placeholder="LUXURIOUS FAUX FUR JACKET WITH AN OVERSIZED SHAWL COLLAR, … AVAILABLE IN CLASSIC BLACK AND SOFT IVORY.&#10;“A TOUCH OF WARMTH,&#10;A STATEMENT OF STYLE.”&#10;— ON THE DETAILS"></textarea>
+    <div class="btns" style="margin-top:6px"><button class="sm pri" data-copyen>영문 문구 복사</button><button class="sm" id="btnDescEn">다시 쓰기</button></div>
+    </div></details>
     <details class="fold" id="foldTxt"><summary>소재·특징·설명 <span class="sum" id="sumTxt"></span></summary><div class="fb">
     <label>실측 메모 (내부용)</label><input type="text" id="f_measNote">
     <div class="row">
@@ -259,21 +278,23 @@
     <label>제품컷 생성 설명 (영문, AI용)</label><textarea id="f_ghost"></textarea>
     <label>미확인 사항</label><input type="text" id="f_unk">
     </div></details>
-    <div class="btns"><button class="pri" id="btnCuts">제품컷·도식화 생성</button><button id="btnRender">상세페이지·사이즈표 만들기</button></div>
+    <div class="btns" style="margin-top:18px"><button class="pri" id="btnCuts">제품컷·도식화 생성</button><button id="btnRender">상세페이지 만들기</button></div>
   </section>
 
   <section id="secCuts" class="hidden">
-    <h2><span class="n">3</span>제품컷 · 디테일</h2>
-    <div class="cuts" id="cuts"></div>
+    <h2><span class="n">3</span>제품컷</h2>
+    <div class="cuts" id="cuts" style="margin-top:10px"></div>
     <div class="cutrow" style="margin-top:12px"><div class="cn">사이즈표<br>도식화</div><div class="slot lineslot" id="lineSlot"></div></div>
-    <div class="chk"><input type="checkbox" id="hq"><span>제품컷 고화질 (크레딧 더 씀 · 기본은 가성비 화질)</span></div>
-    <div class="chk"><input type="checkbox" id="withBack"><span>뒷면 컷도 만들기 (상세페이지·배너에 들어감 · 컬러당 1장 더)</span></div>
-    <div class="chk"><input type="checkbox" id="useCrops"><span>디테일 클로즈업 2장 생성해서 상세에 넣기 (AI로 새로 만듦 · '부위'로 위치 지정) — 끄면 제품컷 + 사이즈표만 (기본)</span></div>
-    <div class="crops" id="crops"></div>
+    <details class="fold sub" id="foldOpt"><summary>생성 옵션 <span class="sum" id="sumOpt"></span></summary><div class="fb">
+    <div class="chk"><input type="checkbox" id="hq"><span>제품컷 고화질 (크레딧 더 씀)</span></div>
+    <div class="chk"><input type="checkbox" id="withBack"><span>뒷면 컷도 만들기 (컬러당 1장 더 · 상세페이지·배너에 들어감)</span></div>
+    <div class="chk"><input type="checkbox" id="useCrops"><span>디테일 클로즈업 2장 AI로 만들어 상세에 넣기</span></div>
+    </div></details>
+    <div class="crops" id="crops" style="margin-top:10px"></div>
   </section>
 
   <section id="secOut" class="hidden">
-    <h2><span class="n">4</span>결과물</h2>
+    <h2><span class="n">4</span>상세페이지</h2>
     <div class="chips" id="detTheme" style="margin:2px 0 12px;align-items:center"><span class="muted" style="font-size:13px;margin-right:4px">상세 배경</span><button class="sm chip" data-theme="white"><span class="dot" style="background:#fff;border:1px solid #ccc"></span>화이트</button><button class="sm chip" data-theme="black"><span class="dot" style="background:#111"></span>블랙 · 흰 라인</button></div>
     <div class="out">
       <div><div class="muted">상세페이지 (완성본)</div><div class="pv" id="pvDetailBox"></div><div id="dlDetailBox"></div></div>
@@ -307,31 +328,31 @@
       <div id="bnrOut" class="out"></div>
       <div class="links" id="bnrLinks"></div>
     </div></details>
-    <div class="btns"><button class="sm" data-copyen>영문 디자인 문구 복사</button></div>
-    <div class="btns"><button class="pri" id="btnSave">드라이브·시트 저장</button><button id="btnRerender">다시 만들기</button></div>
+    <div class="btns" style="margin-top:16px"><button class="pri" id="btnSave">드라이브·시트 저장</button><button id="btnRerender">다시 만들기</button><button class="sm" data-copyen style="border:0;text-decoration:underline;margin-left:auto">영문 문구 복사</button></div>
     <div class="links" id="links"></div>
   </section>
 
   <section id="secUp" class="hidden">
-    <h2><span class="n">5</span>카페24 업로드</h2>
-    <div class="muted" id="c24St">카페24 연결 확인 전</div>
+    <h2><span class="n">5</span>카페24 등록</h2>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="muted" id="c24St" style="flex:1;min-width:160px">카페24 연결 확인 전</span><button class="sm" id="c24Connect">카페24 연결</button><button class="sm" id="c24Reload">분류 새로고침</button></div>
     <div id="c24KeyBox" class="hidden">
       <label>처음 한 번: 카페24 Client Secret 붙여넣기 — <a href="https://developers.cafe24.com/admin/apps/front/develop?client_id=qBR05aIUDVIkRnrhQNahnB" target="_blank">개발자센터 열기</a> → 아래쪽 Client Secret Key "보기" → 복사</label>
       <div style="display:flex;gap:8px"><input type="password" id="c24Secret" autocomplete="off" placeholder="Client Secret Key" style="flex:1"><button id="c24SaveKey">저장</button></div>
     </div>
-    <div class="btns"><button id="c24Connect">카페24 연결</button><button id="c24Reload">분류 다시 불러오기</button></div>
     <div id="c24Form" class="hidden">
       <label>상품명</label><input type="text" id="c24Name">
       <div class="row3">
         <div><label>판매가</label><input type="number" id="c24Price"></div>
+        <div><label>옵션 · 색상 (쉼표)</label><input type="text" id="c24Colors"></div>
+        <div><label>옵션 · 사이즈 (쉼표)</label><input type="text" id="c24Sizes"></div>
+      </div>
+      <details class="fold" id="foldC24Sup"><summary>공급사 <span class="sum">공급가 · 공급사 코드 · 발주 링크</span></summary><div class="fb">
+      <div class="row">
         <div><label>공급가 (원가)</label><input type="number" id="c24Supply"></div>
         <div><label>공급사 코드</label><input type="text" id="c24SupCode" placeholder="1688 = S00000TD"></div>
       </div>
       <label>공급사 상품명 (발주 링크)</label><input type="text" id="c24SupName">
-      <div class="row">
-        <div><label>옵션 · 색상 (쉼표로 구분)</label><input type="text" id="c24Colors"></div>
-        <div><label>옵션 · 사이즈 (쉼표로 구분)</label><input type="text" id="c24Sizes"></div>
-      </div>
+      </div></details>
       <details class="fold" id="foldCat"><summary>분류·메인진열 <span class="sum" id="sumCat"></span></summary><div class="fb">
       <label>분류 (ALL · 카테고리 · NEW 체크 — 지난번 고른 분류가 기본)</label>
       <input type="text" id="c24CatQ" placeholder="분류 이름으로 찾기">
@@ -339,9 +360,7 @@
       <label>메인진열</label><div id="c24Mains" class="chips"></div>
       </div></details>
       <label>대표이미지 (배너 중 1장)</label><div id="c24Rep" class="c24imgs"></div>
-      <div class="muted" style="font-size:12px;margin-top:10px">상세 이미지는 위 "상세페이지 구성" 순서 그대로 올라가요 (내 이미지 → 디테일컷 → 사이즈표). 대표이미지는 상세에 넣지 않아요.</div>
-      <div class="muted" style="font-size:12px;margin-top:10px">항상 <b>진열안함·판매안함</b>으로 올라가요 → 관리자에서 확인 후 "진열하기" · 끝나면 광고 폴더(이은) 광고소재 › 주차 › 상품명)도 만들어요</div>
-      <div class="btns"><button class="pri" id="c24Go">카페24에 등록</button></div>
+      <div class="btns" style="margin-top:16px;align-items:center"><button class="pri" id="c24Go">카페24에 등록</button><span class="muted">진열안함·판매안함으로 올라가요 · 상세는 "상세페이지 구성" 순서대로</span></div>
       <div class="links" id="c24Links"></div>
     </div>
   </section>
@@ -370,11 +389,12 @@
 <div id="viewer" class="hidden"><div id="viewWrap"><img id="viewImg"></div><div class="vbar"><span style="color:#888;font-size:12px">사진을 누르면 원래 크기 · 바깥을 누르면 닫기</span><span style="flex:1"></span><a id="viewDl" download="eeun.png">저장</a><button class="sm" id="viewClose">닫기</button></div></div>
 <div id="sideBg" class="hidden"></div>
 <aside id="side" class="hidden">
-  <div class="sideHead"><b style="font-size:16px">작업 목록</b><span style="flex:1"></span><button class="sm" id="sideRefresh">새로고침</button><button class="sm" id="sideClose">닫기</button></div>
-  <div class="muted" id="syncSt2" style="font-size:11px;margin:4px 0"></div>
-  <div class="muted" style="font-size:12px;margin-bottom:10px">작업은 드라이브(EEUN 상품등록 앱/작업기록)에 자동 저장돼요. 다른 폰·PC에서도 같은 목록이 보이고, 열어서 고친 뒤 다시 저장할 수 있어요.</div>
+  <div class="sideHead"><b style="font-size:17px">작업 목록</b><span style="flex:1"></span><button class="sm" id="sideRefresh">새로고침</button><button class="sm" id="sideClose" aria-label="닫기">✕</button></div>
+  <div class="muted" style="font-size:12px;margin:4px 0 2px">드라이브에 자동 저장 · 다른 폰·PC에서도 같은 목록</div>
+  <div class="muted" id="syncSt2" style="font-size:11px;margin:0 0 12px;min-height:14px"></div>
   <button class="pri" id="sideNew" style="width:100%;margin-bottom:8px">+ 새 상품</button>
   <div id="sideList"></div>
+  <div id="status">연결 전</div>
 </aside>
 <div id="log"></div>
 <button id="updBar" class="hidden">새 버전 나왔어요 · 눌러서 적용</button>
@@ -410,7 +430,7 @@ function run1(fn, ...args){
                if(!j.ok) throw new Error(j.error||'서버 오류'); return j.result; },
           e=>{ throw (e.message && /서버/.test(e.message)) ? e : new Error('네트워크 오류 — 연결이 끊겼어요 (저장·생성 중에 앱을 나가면 끊길 수 있어요). 다시 눌러주세요.'); });
 }
-const show = (id,on=true)=>$(id).classList.toggle('hidden',!on);
+const show = (id,on=true)=>{ $(id).classList.toggle('hidden',!on); if(/^sec/.test(id) && typeof updSteps==='function') queueMicrotask(updSteps); };
 const won = n => Math.round(n).toLocaleString('ko-KR');
 const safeName = s => s.replace(/[\[\]]/g,'').replace(/[\\/:*?"<>|]/g,'').trim().replace(/\s+/g,'_');
 function loadImg(src){ return new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error('이미지 로드 실패')); im.src=src; }); }
@@ -455,7 +475,7 @@ $('btnLogin').onclick = async ()=>{
 /** 로그인 후 화면 열기. 카페24 상태·작업 목록은 기다리지 않고 뒤에서 동시에 받아옴 */
 function showInitLine(){ const I=S.init; if(I) $('status').innerHTML = `${I.week.name}<br>환율 ${I.fx.rate}원/위안 · ${I.models.text} · ${I.models.image}`; }
 async function enterApp(){
-  showInitLine(); show('secLogin', false); show('secInput'); show('btnSide'); show('secUp');
+  showInitLine(); show('secLogin', false); show('secInput'); show('btnSide'); show('btnNew'); show('steps'); show('secUp');
   c24Return().catch(e=>log('카페24 확인 오류: '+e.message,'err'));
   await offerDraft();
   const rid=lsGet('eeun_reopen'); if(rid){ lsSet('eeun_reopen',''); guard(()=>openWork({id:rid, where:'local'})); }
@@ -645,22 +665,30 @@ async function openWork(w){
   if(!d){ log('드라이브에서 불러오는 중…'); d=await run('api_workGet', S.code, w.id); }
   closeSide(); await restoreDraft(d, w.id);
 }
-function openSide(){ show('side'); show('sideBg', !document.body.classList.contains('wide')); loadWorks(); }
-function closeSide(){ if(document.body.classList.contains('wide')) return; show('side',false); show('sideBg',false); }
+function openSide(){ show('side'); show('sideBg'); loadWorks(); }
+function closeSide(){ show('side',false); show('sideBg',false); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !$('side').classList.contains('hidden')) closeSide(); });
 $('btnSide').onclick=openSide; $('sideClose').onclick=closeSide; $('sideBg').onclick=closeSide;
 $('sideRefresh').onclick=()=>loadWorks();
 $('sideNew').onclick=()=>guard(async()=>{ closeSide(); await newProduct(); });
-(function(){
-  const mq=window.matchMedia('(min-width:1100px)');
-  const apply=()=>{
-    const was=document.body.classList.contains('wide');
-    document.body.classList.toggle('wide', mq.matches);
-    if(was && !mq.matches){ show('side',false); show('sideBg',false); }
-    if(!was && mq.matches && document.readyState==='complete') loadWorks();
-  };
-  apply();
-  mq.addEventListener ? mq.addEventListener('change',apply) : mq.addListener(apply);
-})();
+/* 단계 이동 바: 열린 단계만 누를 수 있고, 지금 보는 단계가 검게 */
+function updSteps(){
+  document.querySelectorAll('#steps a').forEach(a=>{ const sec=$(a.dataset.s); a.classList.toggle('off', !sec || sec.classList.contains('hidden')); });
+  const n=($('f_name')||{}).value; $('topName').textContent=(S.info && n && n.trim()) || '상품 등록';
+  markStep();
+}
+function markStep(){
+  const y=$('topbar').offsetHeight+40; let cur=null;
+  document.querySelectorAll('#steps a').forEach(a=>{ const sec=$(a.dataset.s); if(sec && !sec.classList.contains('hidden') && sec.getBoundingClientRect().top<=y) cur=a; });
+  document.querySelectorAll('#steps a').forEach(a=>a.classList.toggle('on', a===cur));
+}
+document.querySelectorAll('#steps a').forEach(a=>a.onclick=()=>{ const sec=$(a.dataset.s); if(!sec || sec.classList.contains('hidden')) return;
+  window.scrollTo({top:sec.getBoundingClientRect().top+window.scrollY-$('topbar').offsetHeight-8, behavior:'smooth'}); });
+let stepRaf=0; window.addEventListener('scroll',()=>{ if(!stepRaf) stepRaf=requestAnimationFrame(()=>{ stepRaf=0; markStep(); }); },{passive:true});
+$('f_name').addEventListener('input',updSteps);
+$('log').onclick=()=>{ $('log').classList.toggle('open'); $('log').scrollTop=1e9; };
+function sumOpt(){ const on=[['hq','고화질'],['withBack','뒷면'],['useCrops','클로즈업']].filter(([k])=>$(k).checked).map(x=>x[1]); $('sumOpt').textContent=on.length?on.join(' · ')+' 켜짐':'기본 (가성비 · 정면·사선)'; show('crops', $('useCrops').checked); }   // 클로즈업 끄면 디테일 칸도 숨김
+['hq','withBack','useCrops'].forEach(k=>$(k).addEventListener('change',sumOpt)); sumOpt();
 
 async function migrateOldDraft(){
   try{ const d=await DB.get('draft'); if(!d) return; const id=d.t.toString(36);
@@ -730,7 +758,7 @@ async function restoreDraft(d, id){
       if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; $('hq').checked=!!d.form.hq; $('withBack').checked=!!d.form.withBack; show('jakjiBox',!!d.form.jakji); updatePrice(); }
       if(d.bnr) S.bnr={...S.bnr, ...d.bnr};
       if(S.info.made){ drawLabelLib(); drawLabelSel(); }
-      $('useCrops').checked=!!d.useCrops;
+      $('useCrops').checked=!!d.useCrops; sumOpt();
       if(!S.crops.length) S.crops=defaultCrops(S.info);
       show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
       if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); await composePages(); if(d.bnrMade||S.bnrMine.length) await makeBanners(false, d.bnrColorMade===false); showOut(); }
@@ -760,7 +788,7 @@ async function analyze(){
   const info = await run('api_analyze', S.code, text, await Promise.all(S.images.map(anaImg)));
   normalizeInfo(info); fixPriceRules(info, text);
   S.info = info; S.cuts = {}; S.out = {}; S.line = null;
-  S.crops = defaultCrops(info); $('useCrops').checked=false;
+  S.crops = defaultCrops(info); $('useCrops').checked=false; sumOpt();
   fillForm(); show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
   log('분석 완료: '+info.product_name, 'ok');
   saveDraft(true);
