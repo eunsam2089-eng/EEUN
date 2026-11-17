@@ -1456,8 +1456,31 @@ function wrapText(g,text,x,y,maxW,lh){
   const out=[]; String(text||'').split('\n').forEach(par=>{ let line=''; for(const ch of par){ const t=line+ch; if(g.measureText(t).width>maxW && line){ out.push(line); line=ch; } else line=t; } out.push(line); });
   out.forEach((l,k)=>g.fillText(l,x,y+k*lh)); return y+out.length*lh;
 }
-/** 작지 그림 기준 컷: 라벨이 정면에 있으면 정면, 아니면 라벨 붙은 컷(뒷면 등) */
-function jakjiView(){ const has=v=>((S.cuts[0]||{})[v]||{}).img; if((S.labels||[]).some(L=>posOf(L,'front'))||!S.labels.length) return 'front'; return ['back','side'].find(v=>has(v)&&S.labels.some(L=>posOf(L,v)))||'front'; }
+/** 작지에 그릴 컷: 라벨이 붙은 컷 전부 (정면·뒷면 둘 다 붙었으면 둘 다), 없으면 정면 */
+function jakjiViews(){ const has=v=>((S.cuts[0]||{})[v]||{}).img; const vs=VIEWS.filter(v=>has(v)&&(S.labels||[]).some(L=>posOf(L,v))); return vs.length?vs:(has('front')?['front']:[]); }
+function jakjiView(){ return jakjiViews()[0]||'front'; }
+/** 라벨 붙은 컷들을 영역(x,y,w,h)에 나란히 그리고 라벨마다 번호 표시. 그린 게 없으면 false */
+function drawLabelViews(g, x, y, w, h, o){
+  const vs=jakjiViews(); if(!vs.length) return false;
+  const gap=vs.length>1?16:0, pw=(w-gap*(vs.length-1))/vs.length;
+  vs.forEach((v,j)=>{
+    const cut=(S.cuts[0]||{})[v], px=x+j*(pw+gap); if(!cut||!cut.img) return;
+    if(!o.white){ g.fillStyle=PAGE_BG; g.fillRect(px,y,pw,h); }
+    const img=composeCut(cut.img,v), b=alphaBBox(cut.img), top=y+(vs.length>1?o.cap+22:0), ah=h-(top-y);
+    const sc=Math.min((pw-o.pad*2)/b.w,(ah-o.pad*2)/b.h), ox=px+(pw-b.w*sc)/2, oy=top+(ah-b.h*sc)/2;
+    g.drawImage(img,b.x,b.y,b.w,b.h,ox,oy,b.w*sc,b.h*sc);
+    if(vs.length>1||v!=='front'){ g.fillStyle='#111'; g.font=o.F(700,o.cap); g.textAlign='left'; g.fillText(VNAME[v],px+12,y+10); }
+    const ppc=pxPerCm(cut.img);
+    S.labels.forEach((L,k)=>{ const P=posOf(L,v); if(!P) return;
+      const cx=ox+P.xr*b.w*sc, cy=oy+P.yr*b.h*sc, r=Math.max(o.num,Math.min(L.wcm,LABEL_MAX_CM)*ppc*sc*0.7);
+      g.strokeStyle='#e5484d'; g.lineWidth=3; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.stroke();
+      const bx=Math.min(cx+r+24, px+pw-o.num-4), by=Math.max(cy-r-24, top+o.num+4);
+      g.beginPath(); g.moveTo(cx+r*.7,cy-r*.7); g.lineTo(bx,by); g.stroke();
+      g.fillStyle='#e5484d'; g.beginPath(); g.arc(bx,by,o.num,0,Math.PI*2); g.fill();
+      g.fillStyle='#fff'; g.font=o.F(700,o.num+2); g.textAlign='center'; g.fillText(String(k+1),bx,by-(o.num+2)*0.6); g.textAlign='left'; });
+  });
+  return true;
+}
 /** 실측 글: 사이즈 여러 개면 사이즈별로 */
 function measText(i){ const ms=(i.measurements||[]).filter(m=>m.label), sz=sizesOf(i.sale_size);
   if(sz.multi && ms.some(m=>m.by_size)) return sz.map(x=>x+': '+ms.map(m=>m.label+' '+((m.by_size||{})[x]||'-')).join(' · ')).join(' / ');
@@ -1476,19 +1499,7 @@ async function renderJakji(){
   rows.forEach(([k,v])=>{ g.font=F(500,20); g.fillStyle='#555'; g.fillText(k,60,y); g.font=F(400,20); g.fillStyle='#111'; const ny=wrapText(g,v,260,y,W-320,28); y=Math.max(y+34,ny+6); g.fillStyle='#e5e5e5'; g.fillRect(60,y-4,W-120,1); });
   const top=y+20, imgW=620, imgH=Math.min(860, H-top-480);
   g.fillStyle=PAGE_BG; g.fillRect(60,top,imgW,imgH);
-  const JV=jakjiView(), cut=(S.cuts[0]||{})[JV];
-  if(cut&&cut.img){
-    const img=composeCut(cut.img,JV), b=alphaBBox(cut.img), sc=Math.min((imgW-60)/b.w,(imgH-60)/b.h), ox=60+(imgW-b.w*sc)/2, oy=top+(imgH-b.h*sc)/2;
-    g.drawImage(img,b.x,b.y,b.w,b.h,ox,oy,b.w*sc,b.h*sc);
-    if(JV!=='front'){ g.fillStyle='#111'; g.font=F(700,20); g.fillText(VNAME[JV]+' 기준',76,top+14); }
-    const ppc=pxPerCm(cut.img);
-    S.labels.forEach((L,k)=>{ const P=posOf(L,JV); if(!P) return; const cx=ox+P.xr*b.w*sc, cy=oy+P.yr*b.h*sc, r=Math.max(18,Math.min(L.wcm,4)*ppc*sc*0.7);
-      g.strokeStyle='#e5484d'; g.lineWidth=3; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.stroke();
-      const bx=Math.min(cx+r+26, 60+imgW-22), by=Math.max(cy-r-26, top+22);
-      g.beginPath(); g.moveTo(cx+r*.7,cy-r*.7); g.lineTo(bx,by); g.stroke();
-      g.fillStyle='#e5484d'; g.beginPath(); g.arc(bx,by,18,0,Math.PI*2); g.fill();
-      g.fillStyle='#fff'; g.font=F(700,20); g.textAlign='center'; g.fillText(String(k+1),bx,by-12); g.textAlign='left'; });
-  } else { g.fillStyle='#999'; g.font=F(400,22); g.fillText('제품컷 없음',80,top+20); }
+  if(!drawLabelViews(g, 60, top, imgW, imgH, {F, cap:20, num:18, pad:30})){ g.fillStyle='#999'; g.font=F(400,22); g.fillText('제품컷 없음',80,top+20); }
   // 라벨 목록
   let ry=top; const rx=60+imgW+30, rw=W-60-rx;
   g.fillStyle='#111'; g.font=F(700,24); g.fillText('라벨 · 부자재',rx,ry); ry+=44;
@@ -1501,6 +1512,7 @@ async function renderJakji(){
     g.font=F(400,18); g.fillStyle='#333';
     ty=wrapText(g,'위치: '+(L.pos||'확인 필요'),rx+44,ty+2,rw-44,25);
     ty=wrapText(g,'방식: '+L.method+'  ·  실물 가로 '+L.wcm.toFixed(1)+'cm',rx+44,ty+2,rw-44,25);
+    if(labViewsOf(L).length) ty=wrapText(g,'붙는 컷: '+labViewsOf(L).map(v=>VNAME[v]).join(' · '),rx+44,ty+2,rw-44,25);
     ry=ty+24;
   });
   // 메모
@@ -1618,16 +1630,7 @@ async function renderJakjiCard(){
   const W=720, H=900, cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
   g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.textBaseline='top';
   const F=(w,s)=>`${w} ${s}px "Noto Sans KR", sans-serif`, labs=S.labels||[], areaH=labs.length?640:860;
-  const JV=jakjiView(), cut=(S.cuts[0]||{})[JV];
-  if(cut&&cut.img){
-    const img=composeCut(cut.img,JV), b=alphaBBox(cut.img), sc=Math.min((W-60)/b.w,(areaH-40)/b.h), ox=(W-b.w*sc)/2, oy=20+(areaH-40-b.h*sc)/2;
-    g.drawImage(img,b.x,b.y,b.w,b.h,ox,oy,b.w*sc,b.h*sc);
-    const ppc=pxPerCm(cut.img);
-    labs.forEach((L,k)=>{ const P=posOf(L,JV); if(!P) return; const cx=ox+P.xr*b.w*sc, cy=oy+P.yr*b.h*sc, r=Math.max(16,Math.min(L.wcm,10)*ppc*sc*0.7);
-      g.strokeStyle='#e5484d'; g.lineWidth=3; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.stroke();
-      const bx2=Math.min(cx+r+22,W-20), by2=Math.max(cy-r-22,20); g.beginPath(); g.moveTo(cx+r*.7,cy-r*.7); g.lineTo(bx2,by2); g.stroke();
-      g.fillStyle='#e5484d'; g.beginPath(); g.arc(bx2,by2,15,0,Math.PI*2); g.fill(); g.fillStyle='#fff'; g.font=F(700,17); g.textAlign='center'; g.fillText(String(k+1),bx2,by2-10); g.textAlign='left'; });
-  }
+  drawLabelViews(g, 0, 0, W, areaH, {F, cap:17, num:15, pad:20, white:true});
   if(labs.length){
     g.fillStyle='#eee'; g.fillRect(20,areaH,W-40,2);
     const cw=(W-40)/Math.min(labs.length,3);
