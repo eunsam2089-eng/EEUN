@@ -262,6 +262,8 @@
     </div>
     <div class="chk"><input type="checkbox" id="f_jakji"><span>작지 뽑기 (작업지시서 이미지 + 작지 시트 행)</span></div>
     <div id="jakjiBox" class="hidden"><label>작지 메모 (공장 전달 사항)</label><textarea id="f_jakjiMemo" placeholder="예) 기존 라벨 제거, 세탁라벨 교체, 종이 행택 부착 → 비닐 포장 후 출고"></textarea></div>
+    <div class="btns" style="margin-top:10px"><button id="btnSave2">드라이브·시트 저장</button><span class="muted" style="align-self:center">작지·샘플시트·상품정보 TXT까지 바로 올라가요</span></div>
+    <div class="links" id="links2"></div>
 
     <details class="fold" id="foldTxt"><summary>소재·특징·설명 <span class="sum" id="sumTxt"></span></summary><div class="fb">
     <label>실측 메모 (내부용)</label><input type="text" id="f_measNote">
@@ -699,7 +701,7 @@ async function apiFromDataUrl(dataUrl){
 }
 function resetWork(){
   S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[]; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false;
-  $('txt').value=''; $('links').innerHTML=''; drawThumbsRaw();
+  $('txt').value=''; setLinks(''); drawThumbsRaw();
   S.c24=null; C24.filled=null; $('c24Links').innerHTML=''; show('c24Form',false);
   S.theme=lsGet('eeun_detail_theme')==='black'?'black':'white';   // 새 상품은 마지막에 고른 배경으로
   ['secReview','secCuts','secOut'].forEach(id=>show(id,false));
@@ -758,7 +760,7 @@ async function restoreDraft(d, id){
       if(!S.crops.length) S.crops=defaultCrops(S.info);
       show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
       if(d.rendered || (d.out && d.out.detail)){ S.out={}; S.out.detail=await renderDetail(); S.out.size=await renderSize(); await composePages(); if(d.bnrMade||S.bnrMine.length) await makeBanners(false, d.bnrColorMade===false); showOut(); }
-      if(S.saved) $('links').innerHTML=`<a href="${S.saved.folderUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${S.saved.sheetUrl}" target="_blank">📊 샘플시트 ${S.saved.row}행</a><div class="muted">이미 저장된 작업이에요. 고쳐서 "드라이브·시트 저장"을 다시 누르면 같은 폴더·행이 갱신돼요.</div>`;
+      if(S.saved) setLinks(`<a href="${S.saved.folderUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${S.saved.sheetUrl}" target="_blank">📊 샘플시트 ${S.saved.row}행</a><div class="muted">이미 저장된 작업이에요. 고쳐서 "드라이브·시트 저장"을 다시 누르면 같은 폴더·행이 갱신돼요.</div>`);
     }
     log('작업을 불러왔어요: '+((S.info&&S.info.product_name)||'입력 중'),'ok');
   } finally { restoring=false; }
@@ -779,7 +781,7 @@ async function anaImg(x){
 async function analyze(){
   const text=$('txt').value.trim();
   if(!text && !S.images.length) throw new Error('텍스트나 사진을 넣어주세요.');
-  if(S.saved){ S.workId=null; S.saved=null; $('links').innerHTML=''; S.images.forEach(im=>{ im.fid=null; }); } // 저장된 작업은 그대로 두고 새 기록으로
+  if(S.saved){ S.workId=null; S.saved=null; setLinks(''); S.images.forEach(im=>{ im.fid=null; }); } // 저장된 작업은 그대로 두고 새 기록으로
   log(`GPT 분석 중… (사진 ${S.images.length}장)`);
   const info = await run('api_analyze', S.code, text, await Promise.all(S.images.map(anaImg)));
   normalizeInfo(info); fixPriceRules(info, text);
@@ -2057,13 +2059,15 @@ async function saveAll(){
   log('업로드 완료');
   const R=await run('api_finalize', S.code, { info:i, cost:costNow(), folders:F, addJakji:$('f_jakji').checked, jakjiUrl, jakjiThumb });
   const sheetUrl='https://docs.google.com/spreadsheets/d/1olJ4HFFMF308F1jATmD-jBxpOXYjUHnaNcui4AaNfTA/edit#gid=2098756701&range=A'+R.row;
-  $('links').innerHTML=`<a href="${F.productUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${sheetUrl}" target="_blank">📊 샘플시트 ${R.row}행</a><a href="${R.txtUrl}" target="_blank">📝 상품정보.txt</a>`+(jakjiUrl?`<a href="${jakjiUrl}" target="_blank">🧾 작업지시서</a>`:'')+(R.jakjiRow?`<div class="muted">작지 시트 ${R.jakjiRow}행 추가됨</div>`:'')+`<div class="muted">판매가 ${won(R.price.price)}원 · ${R.price.formula}</div>`
-    +`<div class="btns"><button class="pri" onclick="newProduct()">새 상품 등록</button></div>`;
+  setLinks(`<a href="${F.productUrl}" target="_blank">📁 제품 폴더 열기</a><a href="${sheetUrl}" target="_blank">📊 샘플시트 ${R.row}행</a><a href="${R.txtUrl}" target="_blank">📝 상품정보.txt</a>`+(jakjiUrl?`<a href="${jakjiUrl}" target="_blank">🧾 작업지시서</a>`:'')+(R.jakjiRow?`<div class="muted">작지 시트 ${R.jakjiRow}행 추가됨</div>`:'')+`<div class="muted">판매가 ${won(R.price.price)}원 · ${R.price.formula}</div>`
+    +`<div class="btns"><button class="pri" onclick="newProduct()">새 상품 등록</button></div>`);
   log(`저장 완료 · 샘플시트 ${R.row}행 · 판매가 ${won(R.price.price)}원`,'ok');
   S.saved={ folderUrl:F.productUrl, sheetUrl, row:R.row, price:R.price.price, txtUrl:R.txtUrl };
   saveDraft(true); await ensureSynced();
 }
 $('btnSave').onclick=()=>guard(saveAll);
+function setLinks(h){ $('links').innerHTML=h; $('links2').innerHTML=h; }
+$('btnSave2').onclick=()=>guard(async()=>{ if(!((S.cuts[0]||{}).front||{}).img){ log('제품컷을 먼저 만들어주세요 (작지 그림에 들어가요)','err'); return; } await saveAll(); });
 
 /* ───────────── 카페24 업로드 ───────────── */
 const C24={ st:null, meta:null, cats:new Set(), mains:new Set(), rep:0, models:new Set(), filled:null };
