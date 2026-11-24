@@ -1804,8 +1804,28 @@ document.addEventListener('change',()=>setTimeout(foldSums,0)); document.addEven
 function showPages(){
   const fn=safeName(S.info.product_name), pages=S.out.pages||[];
   $('pvDetailBox').innerHTML=pages.length?pages.map(u=>`<img src="${u}">`).join(''):'<p class="muted" style="padding:20px">구성에서 켜진 항목이 없어요.</p>';
-  $('dlDetailBox').innerHTML=pages.map((u,k)=>`<a class="muted" download="${fn}_상세페이지${pages.length>1?'_'+(k+1):''}.jpg" href="${u}">다운로드${pages.length>1?' '+(k+1):''}</a>`).join(' · ');
+  $('dlDetailBox').innerHTML=(pages.length>1?`<button class="sm" id="dlAllDetail" style="margin:6px 8px 0 0">전체 저장 (${pages.length}장 한 번에)</button>`:'')
+    +pages.map((u,k)=>`<a class="muted" download="${fn}_상세페이지${pages.length>1?'_'+(k+1):''}.jpg" href="${u}">다운로드${pages.length>1?' '+(k+1):''}</a>`).join(' · ');
+  const all=$('dlAllDetail'); if(all) all.onclick=()=>saveAllPages(fn, pages);
   drawLayout(); foldSums();
+}
+/** dataURL → File (동기: 버튼 누른 직후 바로 공유창을 띄워야 아이폰에서 막히지 않음) */
+function dataUrlFile(u, name){ const [h,b]=u.split(','), bin=atob(b), a=new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) a[k]=bin.charCodeAt(k);
+  return new File([a], name, {type:(h.match(/data:([^;]+)/)||[])[1]||'image/jpeg'}); }
+/** 상세페이지 여러 장 한 번에: 폰은 공유창 → "이미지 저장"으로 사진첩에 전부, 안 되면 차례로 다운로드 */
+function saveAllPages(fn, pages){
+  const files=pages.map((u,k)=>dataUrlFile(u, `${fn}_상세페이지_${k+1}.jpg`));
+  const phone=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints>1 && /Mac/.test(navigator.platform));   // PC는 공유창 대신 그냥 다운로드
+  if(phone && navigator.canShare && navigator.canShare({files})){
+    navigator.share({files}).catch(e=>{ if(e && e.name!=='AbortError'){ log('공유창을 못 띄워서 차례로 다운로드해요','err'); dlEach(files); } });
+    return;
+  }
+  dlEach(files);
+}
+async function dlEach(files){
+  for(const f of files){ const a=document.createElement('a'), url=URL.createObjectURL(f); a.href=url; a.download=f.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000); await new Promise(r=>setTimeout(r,700)); }
+  log(`상세페이지 ${files.length}장 다운로드`,'ok');
 }
 
 /* ───────────── 배너: 내 사진 ───────────── */
@@ -2227,15 +2247,38 @@ function c24LinksHtml(no){
   const ad=S.c24&&S.c24.product_no==no&&S.c24.ad ? `<a href="${S.c24.ad.url}" target="_blank">📁 광고 폴더 (${esc(S.c24.ad.week||'')})</a>` : '';
   return disp+ad+`<a href="${C24_SHOP}/disp/admin/shop1/product/ProductRegister?product_no=${no}" target="_blank">🛠 카페24 관리자에서 열기 (${no})</a><a href="${C24_FRONT}/product/detail.html?product_no=${no}" target="_blank">🛍 쇼핑몰 상품 페이지</a><a href="https://mp.cafe24.com/mp/product/front/detail?product_no=${no}" target="_blank">🔁 마켓플러스 (에이블리·큐텐 전송)</a>`;
 }
-/** 긴 이미지를 가로 1000px 이하 JPEG 조각들로 (카페24 에디터 업로드용) */
+/** 긴 이미지를 가로 1000px 이하 JPEG 조각들로 (카페24 에디터 업로드용)
+ *  자르는 위치: 사진 한가운데가 아니라 사진과 사진 사이(가로 전체가 바뀌는 경계)나 빈 여백 줄에서 자름
+ *  → 지그재그·에이블리처럼 이미지 사이에 틈을 넣는 마켓에서도 사진이 찢어져 보이지 않게 */
 async function c24Slices(src, maxH){
   const im=await loadImg(src); const s=Math.min(1, 1000/iw(im)); const W=Math.round(iw(im)*s), H=Math.round(ih(im)*s), out=[];
-  for(let y=0;y<H;y+=maxH){ const h=Math.min(maxH,H-y); const cv=document.createElement('canvas'); cv.width=W; cv.height=h; const g=cv.getContext('2d');
-    g.fillStyle='#fff'; g.fillRect(0,0,W,h); g.imageSmoothingQuality='high'; g.drawImage(im, 0, y/s, iw(im), h/s, 0, 0, W, h); out.push(cv.toDataURL('image/jpeg',.9).split(',')[1]); }
+  if(H<=maxH){ out.push(sliceJpeg(im,s,W,0,H)); return out; }
+  const full=document.createElement('canvas'); full.width=W; full.height=H; const fg=full.getContext('2d',{willReadFrequently:true});
+  fg.fillStyle='#fff'; fg.fillRect(0,0,W,H); fg.imageSmoothingQuality='high'; fg.drawImage(im,0,0,W,H);
+  const minH=Math.min(1000, Math.round(maxH*0.4));
+  for(let y=0;y<H;){ const cut=H-y<=maxH ? H : bestCut(fg, W, y+minH, Math.min(H-1, y+maxH)); out.push(sliceJpeg(full,1,W,y,cut-y)); y=cut; }
   return out;
 }
-/** 카페24 상세 HTML: img에는 width 없이 style="max-width:100%"만 (원본 크기 그대로, 화면보다 클 때만 줄어듦). 이미지 사이 틈은 감싸는 div에서 없앰 */
-function c24DescHtml(paths){ return '<div style="text-align:center;font-size:0;line-height:0;">'+paths.map(p=>`<img src="${p}" style="max-width:100%"><br>`).join('')+'</div>'; }
+function sliceJpeg(src, s, W, y, h){ const cv=document.createElement('canvas'); cv.width=W; cv.height=h; const g=cv.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,W,h); g.imageSmoothingQuality='high'; g.drawImage(src, 0, y/s, W/s, h/s, 0, 0, W, h); return cv.toDataURL('image/jpeg',.9).split(',')[1]; }
+/** y0~y1 사이에서 자르기 좋은 줄 찾기 — ① 가로 전체가 확 바뀌는 경계(사진↔사진, 띠↔사진) 또는 흰 여백 줄 ② 단색 여백 줄 ③ 없으면 y1 (예전처럼) */
+function bestCut(g, W, y0, y1){
+  const d=g.getImageData(0, y0-1, W, y1-y0+2).data, step=3, cols=Math.floor(W/step);
+  const lum=r=>{ const L=new Float32Array(cols); for(let c=0;c<cols;c++){ const o=(r*W+c*step)*4; L[c]=d[o]*.299+d[o+1]*.587+d[o+2]*.114; } return L; };
+  let prev=lum(0), best=y1, bestS=0;
+  for(let r=1;r<=y1-y0+1;r++){
+    const cur=lum(r); let mn=255, mx=0, big=0;
+    for(let c=0;c<cols;c++){ const v=cur[c]; if(v<mn) mn=v; if(v>mx) mx=v; if(Math.abs(v-prev[c])>22) big++; }
+    const y=y0+r-1, flat=mx-mn<=12, white=flat&&mn>=240, edge=big/cols>=0.6;
+    const sc=(edge||white)?2:flat?1:0;     // 같은 점수면 아래쪽(조각 수 적게)
+    if(sc>0 && sc>=bestS && y>y0){ best=y; bestS=sc; }
+    prev=cur;
+  }
+  return best;
+}
+/** 카페24 상세 HTML: img에는 width 없이 max-width:100%만 (원본 크기 그대로, 화면보다 클 때만 줄어듦)
+ *  img를 display:block으로 붙이고 <br>은 안 씀 — <br>이 있으면 지그재그처럼 감싸는 div 스타일을 지우는 곳에서 이미지마다 한 줄씩 흰 틈이 생김 */
+function c24DescHtml(paths){ return '<div style="text-align:center;font-size:0;line-height:0;">'+paths.map(p=>`<img src="${p}" style="display:block;margin:0 auto;max-width:100%;border:0;">`).join('')+'</div>'; }
 /** 이미지들 → 2400px씩 잘라서 카페24에 올리고 주소 목록 (순서 그대로, 3장씩 동시에) */
 async function c24UploadDetail(urls){
   const parts=[]; for(const u of urls) parts.push(...await c24Slices(u, 2400));
