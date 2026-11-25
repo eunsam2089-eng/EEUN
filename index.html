@@ -2076,8 +2076,22 @@ function sizeItemsT(){
   return items;
 }
 /** 제품컷 상자 720×900 (#F0F0F0) — 기존 비율 그대로 가운데 */
+/** 배경 있는 사진(내 사진·누끼 안 된 컷)인지: 테두리가 전부 불투명하면 사진 */
+const OPQ=new WeakMap();
+function isPhoto(img){
+  if(!img) return false; if(OPQ.has(img)) return OPQ.get(img);
+  const cv=document.createElement('canvas'), s=Math.min(1,200/Math.max(iw(img),ih(img))); cv.width=Math.max(2,Math.round(iw(img)*s)); cv.height=Math.max(2,Math.round(ih(img)*s));
+  const g=cv.getContext('2d',{willReadFrequently:true}); g.drawImage(img,0,0,cv.width,cv.height); const d=g.getImageData(0,0,cv.width,cv.height).data, W=cv.width, H=cv.height;
+  let n=0, op=0; const a=(x,y)=>{ n++; if(d[(y*W+x)*4+3]>245) op++; };
+  for(let x=0;x<W;x++){ a(x,0); a(x,H-1); } for(let y=0;y<H;y++){ a(0,y); a(W-1,y); }
+  const r=op/n>0.97; OPQ.set(img,r); return r;
+}
+/** 제품컷 칸 높이: 누끼 컷은 720×900 박스, 내 사진(배경 있는 사진)은 박스 양옆에 폭을 맞추고 사진 비율대로 전부 */
+function cutBoxH(img){ return isPhoto(img) ? Math.round(TPL.BOX_W*ih(img)/iw(img)) : TPL.BOX_H; }
 function drawCutBoxT(g, img, x, y, view){
-  const T=TPL; g.fillStyle=T.BOX_BG; g.fillRect(x,y,T.BOX_W,T.BOX_H);
+  const T=TPL;
+  if(isPhoto(img)){ g.save(); g.imageSmoothingQuality='high'; g.drawImage(img, x, y, T.BOX_W, cutBoxH(img)); g.restore(); return; }
+  g.fillStyle=T.BOX_BG; g.fillRect(x,y,T.BOX_W,T.BOX_H);
   if(!img){ capsText(g,'NO PRODUCT CUT',x+T.BOX_W/2,y+T.BOX_H/2-11,15,{color:T.GREY,anchor:'center'}); return; }
   const b=alphaBBox(img), mw=T.BOX_W*(view==='side'?0.68:0.78), mh=T.BOX_H*(view==='side'?0.86:0.84);
   const s=Math.min(mw/b.w, mh/b.h), w=b.w*s, h=b.h*s, px=x+(T.BOX_W-w)/2, py=y+(T.BOX_H-h)/2+10;
@@ -2155,14 +2169,14 @@ async function renderDetail(){
     if(cut.side&&cut.side.img) items.push({img:composeCut(cut.side.img,'side'), view:'side'});
     if(cut.back&&cut.back.img) items.push({img:composeCut(cut.back.img,'back'), view:'back'}); });
   const closes=$('useCrops').checked ? (S.crops||[]).map(c=>c.gen&&c.gen.img).filter(Boolean) : [];
-  let H=T.FIRST+items.length*T.BOX_H+Math.max(0,items.length-1)*T.GAP;
+  let H=T.FIRST+items.reduce((a,it)=>a+cutBoxH(it.img),0)+Math.max(0,items.length-1)*T.GAP;
   if(closes.length) H+=T.GAP_CLOSE+closes.length*T.CLOSE_H+(closes.length-1)*T.GAP;
   H+=T.GAP_SIZE;
   const {cv,g}=canvasT(H);
   let y=T.FIRST;
   items.forEach(it=>{ drawCutBoxT(g,it.img,T.MX,y,it.view);
     if(it.dot){ const r=T.DOT/2, cx=T.MX+T.DOT_OFF+r, cy=y+T.DOT_OFF+r; g.fillStyle=it.dot; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill(); g.strokeStyle='rgba(0,0,0,.10)'; g.lineWidth=1; g.stroke(); }
-    y+=T.BOX_H+T.GAP; });
+    y+=cutBoxH(it.img)+T.GAP; });
   if(closes.length){ y+=T.GAP_CLOSE-T.GAP;
     closes.forEach(img=>{ const s=Math.max(T.CLOSE_W/iw(img), T.CLOSE_H/ih(img)), w=iw(img)*s, h=ih(img)*s;
       g.save(); g.beginPath(); g.rect(0,y,T.CLOSE_W,T.CLOSE_H); g.clip(); g.drawImage(img,(T.CLOSE_W-w)/2,y+(T.CLOSE_H-h)/2,w,h); g.restore(); y+=T.CLOSE_H+T.GAP; }); }
