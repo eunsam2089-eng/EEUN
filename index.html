@@ -192,6 +192,11 @@
   #labM .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   #labM input[type=range] { flex:1; }
   /* crop modal */
+  #capM { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:50; display:flex; flex-direction:column; padding:12px; gap:10px; color:#fff; }
+  #capM .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; overflow:auto; }
+  #capM .grid img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:8px; background:#222; cursor:pointer; border:2px solid transparent; }
+  #capM .grid img:active { border-color:#fff; }
+  #capM button { background:#fff; }
   #cropM { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:30; display:flex; flex-direction:column; padding:12px; gap:10px; }
   #cropM canvas { max-width:100%; touch-action:none; align-self:center; background:#222; border-radius:6px; }
   #cropM .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; color:#fff; }
@@ -310,12 +315,13 @@
 
   <section id="secCuts" class="hidden">
     <h2><span class="n">3</span>제품컷</h2>
+    <div class="chk" style="margin-top:6px"><input type="checkbox" id="capMode"><span><b>캡처 사진 그대로</b> — 정면·사선·뒷면·클로즈업을 넣은 캡처에서 누끼만 따서 씀 (AI 생성 안 함 · 크레딧 0)</span></div>
     <div class="cuts" id="cuts" style="margin-top:10px"></div>
     <div class="cutrow" style="margin-top:12px"><div class="cn">사이즈표<br>도식화</div><div class="slot lineslot" id="lineSlot"></div></div>
     <details class="fold sub" id="foldOpt"><summary>생성 옵션 <span class="sum" id="sumOpt"></span></summary><div class="fb">
     <div class="chk"><input type="checkbox" id="hq"><span>제품컷 고화질 (크레딧 더 씀)</span></div>
     <div class="chk"><input type="checkbox" id="withBack"><span>뒷면 컷도 만들기 (컬러당 1장 더 · 상세페이지·배너에 들어감)</span></div>
-    <div class="chk"><input type="checkbox" id="useCrops"><span>디테일 클로즈업 2장 AI로 만들어 상세에 넣기</span></div>
+    <div class="chk"><input type="checkbox" id="useCrops"><span>디테일 클로즈업 2장 상세에 넣기 (AI 생성 · 캡처 모드면 캡처에서 잘라 씀)</span></div>
     </div></details>
     <div class="crops" id="crops" style="margin-top:10px"></div>
   </section>
@@ -381,7 +387,7 @@
       <label>공급사 상품명 (발주 링크)</label><input type="text" id="c24SupName">
       </div></details>
       <details class="fold" id="foldCat"><summary>분류·메인진열 <span class="sum" id="sumCat"></span></summary><div class="fb">
-      <label>분류 (ALL · 카테고리 · NEW 체크 — 지난번 고른 분류가 기본)</label>
+      <label>분류 (상품명 보고 자동 체크 · NEW·ALL 기본 · 메이드면 EEUN Made까지 — 틀리면 고쳐요)</label>
       <input type="text" id="c24CatQ" placeholder="분류 이름으로 찾기">
       <div id="c24Cats" class="c24list"></div>
       <label>메인진열</label><div id="c24Mains" class="chips"></div>
@@ -393,6 +399,11 @@
   </section>
 </div>
 
+<div id="capM" class="hidden">
+  <div class="bar" style="display:flex;gap:8px;align-items:center"><b id="capTitle" style="flex:1">캡처 고르기</b><button class="sm" id="capCancel">닫기</button></div>
+  <div style="color:#bbb;font-size:12px">이 칸에 쓸 캡처를 누르면 누끼를 따서 넣어요</div>
+  <div class="grid" id="capGrid"></div>
+</div>
 <div id="cropM" class="hidden">
   <div class="bar"><select id="cropSrc"></select><input type="text" id="cropLabel" placeholder="라벨 (예: 퍼 카라)" style="flex:1;min-width:120px;padding:8px;border-radius:8px;border:0"></div>
   <canvas id="cropC"></canvas>
@@ -619,7 +630,7 @@ function snapshot(){
   const line = S.line&&(S.line.b64||S.line.fid)&&!S.line.loading ? {mime:S.line.mime, fid:S.line.fid||null, b64:S.line.fid?null:S.line.b64, lines:S.line.lines||[]} : (S.line&&S.line.job?{job:S.line.job}:null);
   const s={ id:S.workId, t:Date.now(), txt:$('txt').value,
     images:S.images.map(im=>({name:im.name, key:im.key, fid:im.fid||null, full:im.fid?null:im.full.dataUrl, w:im.full.w, h:im.full.h, model:!!im.model})),
-    info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked} : null, bnr:S.bnr,
+    info:S.info, form:S.info ? {cur:$('f_cur').value, amt:$('f_amt').value, fx:$('f_fx').value, ship:$('f_ship').value, userPrice:$('f_userPrice').value, jakji:$('f_jakji').checked, hq:$('hq').checked, withBack:$('withBack').checked, capMode:$('capMode').checked} : null, bnr:S.bnr,
     cuts, line, crops:(S.crops||[]).map(c=>({imageIndex:c.imageIndex, label:c.label, rect:c.rect, gen:one(c.gen)})), useCrops:$('useCrops').checked, bnrMade:(S.out&&S.out.banners||[]).length>0, bnrColorMade:colorBannersMade(), layout:S.layout, layoutOff:S.layoutOff, theme:S.theme||'white',
     myDet:(S.myDet||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), bnrMine:(S.bnrMine||[]).map(m=>({key:m.key, fid:m.fid||null, dataUrl:m.fid?null:m.dataUrl})), rendered:!!(S.out&&S.out.detail), saved:S.saved, c24:S.c24||null,
     labels:(S.labels||[]).map(L=>({id:L.id,name:L.name,xr:L.xr,yr:L.yr,wcm:L.wcm,rot:L.rot,v:L.v||null,off:L.off||null,pos:L.pos,method:L.method,placed:!!L.placed})) };
@@ -767,7 +778,7 @@ async function apiFromDataUrl(dataUrl){
   cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height); return { mime:'image/jpeg', b64: cv.toDataURL('image/jpeg',.85).split(',')[1] };
 }
 function resetWork(){
-  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[]; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false;
+  S.images=[]; S.info=null; S.cuts={}; S.crops=[]; S.out={}; S.saved=null; $('bnrLinks').innerHTML=''; S.labels=[]; S.line=null; S.layout=null; S.layoutOff={}; S.myDet=[]; S.bnrMine=[]; S.bnr={colors:null, mode:'each', ratio:'34', view:'side', back:false, bg:'#FFFFFF', margin:0.14, step:0.42}; $('withBack').checked=false; $('capMode').checked=false;
   $('txt').value=''; setLinks(''); drawThumbsRaw();
   S.c24=null; C24.filled=null; $('c24Links').innerHTML=''; show('c24Form',false);
   S.theme=lsGet('eeun_detail_theme')==='black'?'black':'white';   // 새 상품은 마지막에 고른 배경으로
@@ -820,7 +831,7 @@ async function restoreDraft(d, id){
     drawThumbsRaw();
     if(d.info){
       S.info=d.info; normalizeInfo(S.info); fillForm();
-      if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; $('hq').checked=!!d.form.hq; $('withBack').checked=!!d.form.withBack; show('jakjiBox',!!d.form.jakji); updatePrice(); }
+      if(d.form){ $('f_cur').value=d.form.cur; $('f_amt').value=d.form.amt; $('f_fx').value=d.form.fx; $('f_ship').value=d.form.ship; $('f_userPrice').value=d.form.userPrice; $('f_jakji').checked=!!d.form.jakji; $('hq').checked=!!d.form.hq; $('withBack').checked=!!d.form.withBack; $('capMode').checked=!!d.form.capMode; show('jakjiBox',!!d.form.jakji); updatePrice(); }
       if(d.bnr) S.bnr={...S.bnr, ...d.bnr};
       if(S.info.made){ drawLabelLib(); drawLabelSel(); }
       $('useCrops').checked=!!d.useCrops; sumOpt();
@@ -853,7 +864,9 @@ async function analyze(){
   const info = await run('api_analyze', S.code, text, await Promise.all(S.images.map(anaImg)));
   normalizeInfo(info); fixPriceRules(info, text);
   S.info = info; S.cuts = {}; S.out = {}; S.line = null;
-  S.crops = defaultCrops(info); $('useCrops').checked=false; sumOpt();
+  S.crops = defaultCrops(info); $('useCrops').checked=false;
+  if(wantsCapture(text)){ $('capMode').checked=true; $('useCrops').checked=true; log('"캡처로" 요청 → 제품컷·클로즈업을 캡처에서 누끼만 따서 써요 (AI 생성 안 함)','ok'); }
+  sumOpt();
   fillForm(); show('secReview'); show('secCuts'); drawCuts(); drawCrops(); drawLine();
   log('분석 완료: '+info.product_name, 'ok');
   saveDraft(true);
@@ -1043,9 +1056,12 @@ function drawCuts(){
       const lab = st && st.img && labelsOnView(v);
       s.innerHTML = `<span class="tag">${VNAME[v]}${lab?' · 라벨':''}</span>` +
         (st && st.loading ? '<div class="spin"></div>' : st && st.img ? `<img src="${lab?composeCut(st.img,v).toDataURL('image/png'):st.img.src}">` : '없음') +
-        `<div class="acts"><button class="sm" data-a="gen">${st&&st.img?'다시':'생성'}</button><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 8px;font-size:13px;background:#fff;cursor:pointer">내 사진<input type="file" accept="image/*" style="display:none"></label></div>`;
-      s.querySelector('[data-a=gen]').onclick=()=>guard(()=>genCut(ci,v));
-      s.querySelector('input[type=file]').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; const p=await prepImage(f); S.cuts[ci]=S.cuts[ci]||{}; S.cuts[ci][v]={img:p.full.img, mime:'image/jpeg', b64:p.full.dataUrl.split(',')[1]}; drawCuts(); saveDraft(); };
+        `<div class="acts"><button class="sm" data-a="gen">${capOn()?'캡처':st&&st.img?'다시':'생성'}</button><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 8px;font-size:13px;background:#fff;cursor:pointer">내 사진<input type="file" accept="image/*" style="display:none"></label></div>`;
+      s.querySelector('[data-a=gen]').onclick=()=>guard(()=>capOn()?capPickCut(ci,v):genCut(ci,v));
+      s.querySelector('input[type=file]').onchange=e=>guard(async()=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; const p=await prepImage(f); S.cuts[ci]=S.cuts[ci]||{};
+        if(capOn()){ S.cuts[ci][v]={loading:true}; drawCuts(); try{ S.cuts[ci][v]=await cutout(p.full.img, `${c.name||'컬러'} ${VNAME[v]}`); }catch(err){ S.cuts[ci][v]=null; drawCuts(); throw err; } }
+        else S.cuts[ci][v]={img:p.full.img, mime:'image/jpeg', b64:p.full.dataUrl.split(',')[1]};
+        drawCuts(); saveDraft(); });
       r.appendChild(s);
     });
     box.appendChild(r);
@@ -1125,12 +1141,97 @@ async function genCut(ci, view, resumeJob){
   }catch(e){ S.cuts[ci][view]=null; drawCuts(); throw e; }
   drawCuts();
 }
+/* ───────────── 캡처 모드: 넣은 캡처에서 누끼만 따서 제품컷·클로즈업으로 (AI 생성 안 함) ───────────── */
+const capOn=()=>$('capMode').checked;
+/** 입력 글에 "캡처(캡쳐)로 / 그대로 / 누끼" 같은 말이 있으면 캡처 모드 */
+function wantsCapture(t){ t=String(t||''); return /(캡처|캡쳐|캡춰)/.test(t) && /(그대로|누끼|로\s*올|로\s*해|로\s*만|사진으로|으로\s*올)/.test(t); }
+$('capMode').addEventListener('change',()=>{ if(capOn()) $('useCrops').checked=true; sumOpt(); if(S.info){ drawCuts(); drawCrops(); saveDraft(); } });
+/** 누끼 AI (브라우저 안에서 실행 · 처음 한 번만 모델 받음, 이후 캐시) */
+const BG_LIB='https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
+let bgMod=null, bgFirst=true;
+async function bgRemove(blob){
+  if(!bgMod) bgMod=await import(BG_LIB);
+  if(bgFirst){ bgFirst=false; log('누끼 AI 준비 중… (처음 한 번만 모델을 받아서 30초~1분 걸려요)'); }
+  return bgMod.removeBackground(blob, { model:'isnet_quint8', output:{ format:'image/png' } });
+}
+const blobUrl=b=>new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(b); });
+/** 사진 → 배경 지운 투명 PNG (누끼 AI가 안 되면 단색 배경만 지움) — 사진 그대로라 옷 모양·색은 안 바뀜 */
+async function cutout(img, what){
+  const s=Math.min(1, 1600/Math.max(iw(img),ih(img))), cv=document.createElement('canvas'); cv.width=Math.round(iw(img)*s); cv.height=Math.round(ih(img)*s);
+  const g=cv.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height); g.imageSmoothingQuality='high'; g.drawImage(img,0,0,cv.width,cv.height);
+  const jpg=cv.toDataURL('image/jpeg',.95);
+  log(`${what} 누끼 따는 중…`);
+  try{
+    const png=await bgRemove(await (await fetch(jpg)).blob()); const url=await blobUrl(png);
+    const out=await trimAlpha(await loadImg(url));
+    log(`${what} 누끼 완료`,'ok'); return out;
+  }catch(e){
+    log(`${what}: 누끼 AI 실패 → 단색 배경만 지워요 (${String(e&&e.message||e).slice(0,80)})`,'err');
+    return ensureAlpha({mime:'image/jpeg', b64:jpg.split(',')[1]});
+  }
+}
+/** 누끼 정리: 아주 옅은 알파(배경 찌꺼기)는 지우고, 투명 여백 잘라내기 (찌꺼기가 남으면 제품이 박스에서 작아짐) */
+async function trimAlpha(img){
+  const W=iw(img), H=ih(img), cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d',{willReadFrequently:true}); g.drawImage(img,0,0);
+  const D=g.getImageData(0,0,W,H), p=D.data; let x0=W,y0=H,x1=-1,y1=-1;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const o=(y*W+x)*4+3; if(p[o]<40){ p[o]=0; continue; } if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  g.putImageData(D,0,0);
+  if(x1<0) throw new Error('누끼 결과가 비었어요');
+  const pad=Math.round(Math.max(x1-x0,y1-y0)*0.02), x=Math.max(0,x0-pad), y=Math.max(0,y0-pad), w=Math.min(W-x,x1-x0+1+pad*2), h=Math.min(H-y,y1-y0+1+pad*2);
+  const out=document.createElement('canvas'); out.width=w; out.height=h; out.getContext('2d').drawImage(cv,x,y,w,h,0,0,w,h);
+  const url=out.toDataURL('image/png'); return {img:await loadImg(url), mime:'image/png', b64:url.split(',')[1]};
+}
+/** 캡처 고르기 창 → 고른 사진 index (닫으면 null) */
+function capChoose(title){
+  return new Promise(res=>{
+    $('capTitle').textContent=title; const grid=$('capGrid'); grid.innerHTML='';
+    S.images.forEach((im,i)=>{ const el=document.createElement('img'); el.src=im.full.dataUrl||im.full.img.src; el.title='사진 '+i; el.onclick=()=>{ show('capM',false); res(i); }; grid.appendChild(el); });
+    $('capCancel').onclick=()=>{ show('capM',false); res(null); };
+    show('capM');
+  });
+}
+async function capPickCut(ci, v){
+  if(!S.images.length) throw new Error('캡처 사진이 없어요 — 1단계에 사진을 넣어주세요.');
+  const c=S.info.sale_colors[ci]||{}, nm=`${c.name||'컬러'} ${VNAME[v]}`;
+  const i=await capChoose(nm+' — 캡처 고르기'); if(i==null) return;
+  await capSet(ci, v, i);
+}
+async function capSet(ci, v, i){
+  const c=S.info.sale_colors[ci]||{}, nm=`${c.name||'컬러'} ${VNAME[v]}`;
+  S.cuts[ci]=S.cuts[ci]||{}; S.cuts[ci][v]={loading:true}; drawCuts();
+  try{ S.cuts[ci][v]={...await cutout(S.images[i].full.img, nm), src:i}; }
+  catch(e){ S.cuts[ci][v]=null; drawCuts(); throw e; }
+  drawCuts(); saveDraft(true);
+}
+/** 클로즈업 = 캡처에서 "부위"로 고른 부분 그대로 (꽉 찬 사진이라 누끼 없이) */
+function capCrop(k){
+  const c=S.crops[k]; const cv=c&&srcCrop(c); if(!cv) return;
+  const url=cv.toDataURL('image/jpeg',.92); const im=new Image(); im.src=url;
+  c.gen={img:im, mime:'image/jpeg', b64:url.split(',')[1]}; im.onload=()=>drawCrops(); saveDraft(true);
+}
+/** 자동: 제품 사진 순서대로 정면 → 사선 → (뒷면) 배정, 컬러가 여러 개면 캡처가 충분할 때만 컬러별로 이어서 */
+async function capAllCuts(){
+  const views=$('withBack').checked?VIEWS:['front','side'], nC=S.info.sale_colors.length||1;
+  let list=(S.info.product_ref_indices||[]).filter(i=>S.images[i]); if(!list.length) list=[...S.images.keys()];
+  const miss=[];
+  for(let ci=0;ci<nC;ci++) for(let vi=0;vi<views.length;vi++){
+    const v=views[vi]; if(((S.cuts[ci]||{})[v]||{}).img) continue;
+    const i = list.length>=nC*views.length ? list[ci*views.length+vi] : (ci===0 ? list[vi] : undefined);
+    if(i==null){ miss.push(`${(S.info.sale_colors[ci]||{}).name||'컬러'} ${VNAME[v]}`); continue; }
+    await capSet(ci, v, i);
+  }
+  $('useCrops').checked=true; sumOpt(); (S.crops||[]).forEach((c,k)=>{ if(!(c.gen&&c.gen.img)) capCrop(k); }); drawCrops();
+  if(miss.length) log(`캡처가 모자라서 비워둔 칸: ${miss.join(', ')} — 칸의 "캡처"로 골라주세요 (사진이 안 맞으면 "캡처"로 바꾸면 돼요)`,'err');
+  if(!(S.line&&S.line.img)) await genLine();   // 사이즈표 라인 도식화는 그대로 (사진이 아니라 그림이라)
+}
 async function pool(tasks, n, failMsg){
   let k=0; const errs=[];
   await Promise.all(Array.from({length:Math.min(n,tasks.length)}, async()=>{ while(k<tasks.length){ const t=tasks[k++]; try{ await t(); }catch(e){ errs.push(e); log('오류: '+(e&&e.message||e),'err'); } } }));
   if(errs.length) throw new Error(failMsg || `이미지 ${errs.length}개 실패 — 해당 칸의 '다시'를 눌러주세요.`);
 }
 async function genAllCuts(){
+  if(capOn()) return capAllCuts();
   const views=$('withBack').checked?VIEWS:['front','side'], first={};
   views.forEach(v=>{ let r; first[v]={p:new Promise(x=>r=x)}; first[v].r=r; if(((S.cuts[0]||{})[v]||{}).img || !S.info.sale_colors.length) r(); });
   const t0=[], tN=[];
@@ -1332,7 +1433,8 @@ function drawCrops(){
     s.innerHTML=`<span class="tag">${esc(c.label)}</span>`+
       (st&&st.loading?'<div class="spin"></div>':st&&st.img?`<img src="${st.img.src}">`:'<span style="padding:0 10px;text-align:center;font-size:12px">없음 · 생성을 눌러요</span>')+
       `<div class="acts"><button class="sm" data-a="gen">${st&&st.img?'다시':'생성'}</button><button class="sm" data-a="pick">부위</button><label class="sm" style="border:1px solid #111;border-radius:8px;padding:5px 8px;font-size:13px;background:#fff;cursor:pointer">내 사진<input type="file" accept="image/*" style="display:none"></label></div>`;
-    s.querySelector('[data-a=gen]').onclick=()=>guard(()=>genDetail(k));
+    s.querySelector('[data-a=gen]').onclick=()=>guard(()=>capOn()?capCrop(k):genDetail(k));
+    if(capOn()) s.querySelector('[data-a=gen]').textContent='캡처';
     s.querySelector('[data-a=pick]').onclick=()=>openCrop(k);
     s.querySelector('input[type=file]').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; const p=await prepImage(f); c.gen={img:p.full.img, mime:'image/jpeg', b64:p.full.dataUrl.split(',')[1]}; drawCrops(); saveDraft(); };
     box.appendChild(s);
@@ -1388,7 +1490,7 @@ $('cropSrc').onchange=()=>{ CR.c.imageIndex=Number($('cropSrc').value); CR.c.rec
   cv.addEventListener('pointermove',e=>{ if(!drag) return; CR.c.rect.x=drag.rx+(e.clientX-drag.x)*drag.k/CR.s; CR.c.rect.y=drag.ry+(e.clientY-drag.y)*drag.k/CR.s; clampRect(); paintCrop(); });
   cv.addEventListener('pointerup',()=>drag=null); cv.addEventListener('pointercancel',()=>drag=null);
 })();
-$('cropOk').onclick=()=>{ CR.c.label=$('cropLabel').value.trim()||'디테일'; S.crops[CR.k]={...CR.c, gen:CR.gen}; show('cropM',false); drawCrops(); saveDraft(); };
+$('cropOk').onclick=()=>{ CR.c.label=$('cropLabel').value.trim()||'디테일'; S.crops[CR.k]={...CR.c, gen:CR.gen}; show('cropM',false); if(capOn()) capCrop(CR.k); drawCrops(); saveDraft(); };
 $('cropCancel').onclick=()=>show('cropM',false);
 
 /* ───────────── 라벨 (EEUN MADE) ───────────── */
@@ -2192,7 +2294,7 @@ $('c24Connect').onclick=()=>guard(async()=>{
 async function c24LoadMeta(){
   C24.meta=await run('api_c24Meta', S.code);
   const lastC=lsGet('c24_cats'), lastM=lsGet('c24_mains');
-  C24.cats=new Set(lastC ? lastC.split(',').filter(Boolean) : C24.meta.categories.filter(c=>/^(ALL|NEW)$/i.test(c.name.trim())).map(c=>String(c.no)));
+  C24.cats=new Set(autoCats());   // 지난번 분류를 이어 쓰지 않고, 지금 상품 보고 새로 고름
   C24.mains=new Set(lastM ? lastM.split(',').filter(Boolean) : C24.meta.mains.filter(m=>/new/i.test(m.name)).map(m=>String(m.no)));
   drawC24Cats(); drawC24Mains();
 }
@@ -2223,6 +2325,43 @@ function drawC24Imgs(){
   bns.forEach((b,k)=>{ const d=document.createElement('div'); d.className='it'+(k===C24.rep?' on':''); d.innerHTML=`<img src="${b.url}">${k===C24.rep?'<span class="ck">대표</span>':''}`; d.onclick=()=>{ C24.rep=k; drawC24Imgs(); }; $('c24Rep').appendChild(d); });
 }
 /** 결과물이 나오면 업로드 칸을 지금 상품 정보로 채움 (상품이 바뀔 때만) */
+/** 상품명(+GPT 분류)으로 카페24 분류 고르기: [대분류, 소분류] — 위에서부터 먼저 맞는 것 */
+const CAT_RULES=[
+  [/부츠(?!컷)|슈즈|신발|스니커즈|운동화|로퍼|하이힐|힐$|샌들|슬리퍼|뮬$|워커|플랫슈|메리제인|부티|어그|모카신|슬링백/, 'SHOES / BAG','Shoes'],
+  [/가방|숄더\s*백|토트\s*백|크로스\s*백|미니\s*백|백팩|호보\s*백|버킷\s*백|클러치|파우치|지갑|에코\s*백|[가-힣]백$/, 'SHOES / BAG','Bag'],
+  [/모자|햇|비니|볼캡|캡모자|베레모|바라클라바|이어\s*머프/, 'ACC','hat'],
+  [/워머|머플러|목도리|스카프|장갑|목걸이|귀걸이|이어링|반지|팔찌|브로치|키링|헤어\s*핀|집게\s*핀|선글라스/, 'ACC','Accessories'],
+  [/원피스|드레스/, 'TOP','Dress'],
+  [/가디건|니트\s*집업/, 'OUTWEAR','Cardigan'],
+  [/코트/, 'OUTWEAR','Coat'],
+  [/자켓|재킷|블레이저|JK|무스탕|라이더|트러커/i, 'OUTWEAR','Jacket'],
+  [/점퍼|패딩|블루종|야상|바람막이|아노락|파카|집업|후리스|플리스/, 'OUTWEAR','Jumper'],
+  [/스커트|치마/, 'BOTTOM','Skirt'],
+  [/쇼츠|반바지|숏\s*팬츠|하프\s*팬츠|버뮤다/, 'BOTTOM','Shorts'],
+  [/청바지|데님(?!\s*(셔츠|블라우스))|진$/, 'BOTTOM','Denim'],
+  [/팬츠|바지|슬랙스|조거|레깅스/, 'BOTTOM','Pants'],
+  [/티셔츠|맨투맨/, 'TOP','Tee'],
+  [/셔츠|블라우스|남방/, 'TOP','Shirt/Blouse'],
+  [/나시|슬리브리스|민소매|뷔스티에|캐미솔|탱크\s*탑|홀터|조끼|베스트|튜브\s*탑/, 'TOP','Sleeveless'],
+  [/니트|스웨터|케이블|꽈배기|터틀넥|폴라|골지/, 'TOP','Kint'],
+  [/티셔츠|티$|탑$|롱슬리브|맨투맨|스웨트|후드|후디|크롭|반팔|긴팔/, 'TOP','Tee'],
+  [/벨트|양말|삭스|keyring|키링/i, 'ACC','etc'],
+];
+function catFor(t){ t=String(t||'').replace(/\[[^\]]*\]/g,' ').trim(); for(const [re,top,sub] of CAT_RULES) if(re.test(t)) return [top,sub]; return null; }
+function autoCats(say){
+  const M=C24.meta; if(!M) return [];
+  const norm=s=>String(s).replace(/\s+/g,' ').trim().toLowerCase();
+  const find=(...path)=>{ const want=norm(path.join(' > ')); const c=M.categories.find(c=>norm(c.path)===want); return c?String(c.no):null; };
+  const i=S.info||{}, name=($('c24Name')&&$('c24Name').value)||i.product_name||'';
+  const hit=catFor(name)||catFor(i.category)||catFor(i.product_name_en);
+  const out=[find('NEW'), find('ALL')];
+  if(hit){ out.push(find(hit[0]), find(hit[0], hit[1])); }
+  const made=($('f_made')&&$('f_made').checked) || /EEUN\s*MADE/i.test(name);
+  if(made) out.push(find('EEUN Archive'), find('EEUN Archive','EEUN Made'));
+  const nos=[...new Set(out.filter(Boolean))];
+  if(say) log(hit ? `분류 자동: ${hit[0]} > ${hit[1]} · NEW · ALL${made?' · EEUN Made':''}` : '분류를 상품명으로 못 정했어요 — NEW·ALL만 체크했으니 분류를 골라주세요', hit?'ok':'err');
+  return nos;
+}
 function c24Fill(){
   const i=S.info; if(!i) return;
   const key=S.workId+'|'+i.product_name;
@@ -2236,6 +2375,7 @@ function c24Fill(){
     $('c24Sizes').value=String(i.sale_size||'FREE').split(/[\/,]/).map(s=>s.trim()).filter(Boolean).join(', ');
     C24.rep=0;
     $('c24Links').innerHTML = S.c24 ? c24LinksHtml(S.c24.product_no) : '';
+    if(C24.meta){ C24.cats=new Set(autoCats(true)); drawC24Cats(); }
   }
   drawC24Imgs();
   if(!C24.st) c24Status(); else show('c24Form', !!C24.st.connected);
@@ -2310,17 +2450,15 @@ async function c24Upload(){
   const show1='F';   // 항상 진열안함·판매안함으로 등록 (확인 후 '진열하기')
   const req={ display:show1, selling:show1, product_name:name, supply_product_name:$('c24SupName').value.trim().slice(0,250), price, supply_price:supply,
     has_option:options.length?'T':'F', options, description:html,
-    // 모바일 상세 = PC와 똑같은 내용을 '직접 등록'으로. '상품 상세설명 동일'로 두면 카페24가 모바일 이미지를 기본 640px로 줄이는데,
-    // 그 '모바일 상품이미지 사이즈 설정'은 API에 없는 항목이라 자동으로 원본을 고를 수 없음 → 직접 등록이면 그 설정 자체가 안 걸려서 원본 그대로
-    separated_mobile_description:'T', mobile_description:html,
+    // 모바일 상세 = '상품 상세설명 동일' (관리자 선택과 같음). 모바일 상품이미지 사이즈는 API로 만든 상품이 '원본크기'(base)로 저장돼서
+    // 관리자에서 따로 안 바꿔도 원본 그대로 나옴 (예전엔 '직접 등록'으로 올렸음)
+    separated_mobile_description:'F',
     add_category_no:[...C24.cats].map(n=>({category_no:Number(n), recommend:'F', new:'F'})), main:[...C24.mains].map(String) };
   const sc=$('c24SupCode').value.trim(); if(/^[A-Z0-9]{8}$/.test(sc)) req.supplier_code=sc;
   if(!options.length) delete req.options;
   log('카페24 상품 등록 중…');
   const P=await run('api_c24CreateProduct', S.code, req);
-  // 모바일 상세 '직접 등록' + PC와 같은 내용 (등록 API가 이 설정을 안 받는 경우가 있어 수정 API로 한 번 더) → 모바일 이미지 원본 크기
-  try{ await run('api_c24SetMobile', S.code, P.product_no, html); log('모바일 상세: PC와 같은 내용 · 이미지 원본 크기','ok'); }
-  catch(e){ log('모바일 상세 설정 실패 — 관리자에서 \'모바일 상품이미지 사이즈 설정\'을 원본으로 바꿔주세요: '+e.message,'err'); }
+  log('모바일 상세: 상품 상세설명 동일 · 모바일 이미지 원본크기','ok');
   log('대표이미지 올리는 중…');
   const repB64=(await c24Slices(rep.url, 100000))[0];
   try{ await run('api_c24SetImage', S.code, P.product_no, repB64); }catch(e){ log('대표이미지 등록 실패 — 관리자에서 직접 넣어주세요: '+e.message,'err'); }
