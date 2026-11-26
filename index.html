@@ -2172,7 +2172,8 @@ async function renderDetail(){
  });   // 뒷면 컷은 상세에 안 넣음
   const closes=$('useCrops').checked ? (S.crops||[]).map(c=>c.gen&&c.gen.img).filter(Boolean) : [];
   let H=T.FIRST+items.reduce((a,it)=>a+cutBoxH(it.img),0)+Math.max(0,items.length-1)*T.GAP;
-  if(closes.length) H+=T.GAP_CLOSE+closes.length*T.CLOSE_H+(closes.length-1)*T.GAP;
+  const CG=20, CW=(T.BOX_W-CG)/2, CH=Math.round(CW*1.25), crow=Math.ceil(closes.length/2);   // 클로즈업: 제품컷 폭 안에 2장씩 나란히 (작게)
+  if(closes.length) H+=T.GAP_CLOSE+crow*CH+(crow-1)*CG;
   H+=T.GAP_SIZE;
   const {cv,g}=canvasT(H);
   let y=T.FIRST;
@@ -2180,8 +2181,11 @@ async function renderDetail(){
     if(it.dot){ const r=T.DOT/2, cx=T.MX+T.DOT_OFF+r, cy=y+T.DOT_OFF+r; g.fillStyle=it.dot; g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill(); g.strokeStyle='rgba(0,0,0,.10)'; g.lineWidth=1; g.stroke(); }
     y+=cutBoxH(it.img)+T.GAP; });
   if(closes.length){ y+=T.GAP_CLOSE-T.GAP;
-    closes.forEach(img=>{ const s=Math.max(T.CLOSE_W/iw(img), T.CLOSE_H/ih(img)), w=iw(img)*s, h=ih(img)*s;
-      g.save(); g.beginPath(); g.rect(0,y,T.CLOSE_W,T.CLOSE_H); g.clip(); g.drawImage(img,(T.CLOSE_W-w)/2,y+(T.CLOSE_H-h)/2,w,h); g.restore(); y+=T.CLOSE_H+T.GAP; }); }
+    closes.forEach((img,k)=>{ const row=Math.floor(k/2), lone=(k===closes.length-1 && closes.length%2===1);
+      const x=lone ? T.MX+(T.BOX_W-CW)/2 : T.MX+(k%2)*(CW+CG), yy=y+row*(CH+CG);
+      const s=Math.max(CW/iw(img), CH/ih(img)), w=iw(img)*s, h=ih(img)*s;
+      g.save(); g.beginPath(); g.rect(x,yy,CW,CH); g.clip(); g.imageSmoothingQuality='high'; g.drawImage(img,x+(CW-w)/2,yy+(CH-h)/2,w,h); g.restore(); });
+    y+=crow*CH+(crow-1)*CG+T.GAP; }
   return jpegT(cv);
 }
 /** 사이즈표: 단독 PNG(위아래 120 여백) + 상세에 이어 붙일 블록 + 맨 아래 정보 블록까지 같이 만듦 */
